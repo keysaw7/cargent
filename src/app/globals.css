@@ -1,26 +1,176 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-gold: var(--gold);
+  --color-holo: var(--holo);
+  --color-arcane: var(--arcane);
+  --color-ivory: var(--ivory);
+  --color-obsidian: var(--obsidian);
+  --color-nocturne: var(--nocturne);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --font-sans: "Space Grotesk", "Space Grotesk Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cormorant SC", "Cormorant SC Fallback", ui-serif, Georgia, serif;
+  --font-mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, monospace;
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 1.8);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --obsidian: #090b14;
+  --nocturne: #12182c;
+  --arcane: #3457d5;
+  --holo: #66e3ff;
+  --gold: #d6a94a;
+  --ivory: #f0e8d5;
+  --background: #090b14;
+  --foreground: #f0e8d5;
+  --card: #12182c;
+  --card-foreground: #f0e8d5;
+  --popover: #12182c;
+  --popover-foreground: #f0e8d5;
+  --primary: #d6a94a;
+  --primary-foreground: #090b14;
+  --secondary: #1a2340;
+  --secondary-foreground: #f0e8d5;
+  --muted: #1a2340;
+  --muted-foreground: #c4b89a;
+  --accent: #3457d5;
+  --accent-foreground: #f0e8d5;
+  --destructive: oklch(0.68 0.18 25);
+  --border: color-mix(in oklab, #d6a94a 28%, transparent);
+  --input: color-mix(in oklab, #f0e8d5 16%, transparent);
+  --ring: #66e3ff;
+  --chart-1: #d6a94a;
+  --chart-2: #66e3ff;
+  --chart-3: #3457d5;
+  --chart-4: #f0e8d5;
+  --chart-5: #12182c;
+  --radius: 0.4rem;
+  --sidebar: #12182c;
+  --sidebar-foreground: #f0e8d5;
+  --sidebar-primary: #d6a94a;
+  --sidebar-primary-foreground: #090b14;
+  --sidebar-accent: #1a2340;
+  --sidebar-accent-foreground: #f0e8d5;
+  --sidebar-border: color-mix(in oklab, #d6a94a 28%, transparent);
+  --sidebar-ring: #66e3ff;
+}
+
+.dark {
+  --background: #090b14;
+  --foreground: #f0e8d5;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply bg-background font-sans text-foreground;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply min-h-full bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(1200px 500px at 10% -10%, color-mix(in oklab, var(--arcane) 18%, transparent), transparent 60%),
+      radial-gradient(900px 400px at 100% 0%, color-mix(in oklab, var(--gold) 10%, transparent), transparent 55%);
+  }
+
+  h1,
+  h2,
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--gold) 40%, transparent);
+    color: var(--ivory);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--holo);
+    outline-offset: 3px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .binder-grid {
+    background-image:
+      linear-gradient(
+        to right,
+        color-mix(in oklab, var(--gold) 16%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in oklab, var(--gold) 16%, transparent) 1px,
+        transparent 1px
+      );
+    background-size: 42px 61px;
+  }
+
+  .hairline {
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gold) 35%, transparent);
+  }
+
+  .foil-sheen {
+    background: linear-gradient(
+      115deg,
+      transparent 18%,
+      color-mix(in oklab, var(--holo) 55%, white 20%) 42%,
+      color-mix(in oklab, var(--gold) 40%, transparent) 52%,
+      transparent 72%
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .foil-sheen,
+  .card-tilt {
+    transform: none !important;
+    transition: none !important;
+  }
 }

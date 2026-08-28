@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cargent
 
-## Getting Started
+Classeur de cartes pour agents et modèles d’IA. Next.js 16, Node 24, Supabase Auth / Postgres / Storage, déployable sur Vercel.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 App Router, React 19, TypeScript 5.9, Tailwind CSS 4
+- Supabase (auth e-mail/mot de passe, PostgreSQL + RLS, Storage)
+- pnpm 11, Node.js 24 LTS
+
+## Prérequis
+
+- Node.js 24 (`nvm use`)
+- pnpm 11
+- Un projet [Supabase](https://supabase.com)
+
+## Installation locale
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Renseigne `.env.local` :
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+N’ajoute jamais la clé `service_role` dans l’app.
 
-## Learn More
+## Base de données
 
-To learn more about Next.js, take a look at the following resources:
+Dans le SQL Editor du dashboard Supabase, exécute `supabase/migrations/20260828100000_init_cargent.sql`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Ou, avec la CLI liée au projet :
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm dlx supabase login
+pnpm dlx supabase link --project-ref <project-id>
+pnpm dlx supabase db push
+```
 
-## Deploy on Vercel
+Régénère les types si le schéma change :
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pnpm dlx supabase gen types typescript --project-id <project-id> > src/types/database.ts
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Auth e-mail
+
+Dans Authentication > URL Configuration :
+
+- Site URL : `http://localhost:3000` en local, l’URL Vercel en production
+- Redirect URLs : `http://localhost:3000/auth/confirm**` et `https://ton-domaine/auth/confirm**`
+
+Dans Authentication > Email Templates, pour Confirm signup et Reset password, utilise un lien hash SSR :
+
+```
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type={{ .Type }}&next=/dashboard
+```
+
+Pour le reset, `next=/nouveau-mot-de-passe`.
+
+## Scripts
+
+```bash
+pnpm dev
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+## Déploiement Vercel
+
+1. Importer le dépôt GitHub.
+2. Framework : Next.js (détecté).
+3. Ajouter les trois variables d’environnement.
+4. Mettre `NEXT_PUBLIC_SITE_URL` sur l’URL de production.
+5. Déployer.
+
+Aucun `vercel.json` n’est requis.
+
+## RLS à vérifier
+
+- Anonyme : lecture des profils, collections publiques, cartes publiées, images publiques
+- Anonyme : aucune écriture
+- Utilisateur A : ne peut pas modifier les ressources de B
+- Collection privée et carte brouillon : invisibles hors propriétaire
