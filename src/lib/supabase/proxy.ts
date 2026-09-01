@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getPublicEnv } from "@/lib/env";
+import { clearSupabaseAuthCookies, getAuthClaims } from "@/lib/supabase/session";
 import type { Database } from "@/types/database";
 
 export async function updateSession(request: NextRequest) {
@@ -30,8 +31,16 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const { data } = await supabase.auth.getClaims();
-  const isAuthenticated = Boolean(data?.claims);
+  let isAuthenticated = false;
+  try {
+    const claims = await getAuthClaims(supabase);
+    isAuthenticated = Boolean(claims);
+  } catch {
+    const failed = NextResponse.next({ request });
+    clearSupabaseAuthCookies(request, failed);
+    return failed;
+  }
+
   const pathname = request.nextUrl.pathname;
   const isProtected = pathname.startsWith("/dashboard");
   const isAuthPage =

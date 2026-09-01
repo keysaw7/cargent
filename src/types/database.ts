@@ -56,6 +56,7 @@ export type Database = {
           short_description: string;
           slug: string;
           tags: string[];
+          template: Database["public"]["Enums"]["card_template"];
           updated_at: string;
         };
         Insert: {
@@ -72,6 +73,7 @@ export type Database = {
           short_description: string;
           slug: string;
           tags?: string[];
+          template?: Database["public"]["Enums"]["card_template"];
           updated_at?: string;
         };
         Update: {
@@ -88,6 +90,7 @@ export type Database = {
           short_description?: string;
           slug?: string;
           tags?: string[];
+          template?: Database["public"]["Enums"]["card_template"];
           updated_at?: string;
         };
         Relationships: [
@@ -180,6 +183,16 @@ export type Database = {
     };
     Enums: {
       card_kind: "agent" | "model";
+      card_template:
+        | "classique"
+        | "signal"
+        | "reflet"
+        | "grimoire"
+        | "terminal"
+        | "arcane"
+        | "obsidienne"
+        | "classeur"
+        | "relique";
     };
     CompositeTypes: {
       [_ in never]: never;

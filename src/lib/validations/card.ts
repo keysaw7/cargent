@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import {
+  CARD_TEMPLATES,
+  DEFAULT_CARD_TEMPLATE,
   MAX_ABILITIES,
   MAX_ABILITY_POWER,
   MAX_LEVEL,
@@ -19,6 +21,7 @@ export const cardSchema = z.object({
   collectionId: z.uuid("Collection introuvable."),
   name: z.string().trim().min(2, "Le nom de la carte doit faire au moins 2 caractères.").max(48),
   kind: z.enum(["agent", "model"]),
+  template: z.enum(CARD_TEMPLATES).default(DEFAULT_CARD_TEMPLATE),
   provider: z.string().trim().max(40).optional().or(z.literal("")),
   level: z.coerce.number().int().min(MIN_LEVEL).max(MAX_LEVEL),
   shortDescription: z

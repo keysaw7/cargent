@@ -8,6 +8,7 @@ function toView(card: CardWithAbilities | PublicCard): TradingCardView {
   return {
     name: card.name,
     kind: card.kind,
+    template: card.template,
     level: card.level,
     shortDescription: card.short_description,
     provider: card.provider,

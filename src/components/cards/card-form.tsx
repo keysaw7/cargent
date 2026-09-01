@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 
+import { TemplatePicker } from "@/components/cards/template-picker";
 import { TradingCard } from "@/components/cards/trading-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { ActionResult } from "@/lib/action-result";
-import { MAX_ABILITIES, MAX_LEVEL, MIN_LEVEL, type CardKind } from "@/lib/constants";
+import { resolveCardTemplate } from "@/lib/card-templates";
+import { DEFAULT_CARD_TEMPLATE, MAX_ABILITIES, MAX_LEVEL, MIN_LEVEL, type CardKind, type CardTemplate } from "@/lib/constants";
 import { publicStorageUrl } from "@/lib/env";
 import { CARD_BUCKET, cardArtPath, validateImageFile } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/client";
@@ -37,6 +39,9 @@ export function CardForm({
 }) {
   const [name, setName] = useState(card?.name ?? "");
   const [kind, setKind] = useState<CardKind>(card?.kind ?? "agent");
+  const [template, setTemplate] = useState<CardTemplate>(
+    card ? resolveCardTemplate(card.template) : DEFAULT_CARD_TEMPLATE,
+  );
   const [provider, setProvider] = useState(card?.provider ?? "");
   const [level, setLevel] = useState(card?.level ?? 4);
   const [shortDescription, setShortDescription] = useState(card?.short_description ?? "");
@@ -62,6 +67,7 @@ export function CardForm({
     () => ({
       name: name || "Sans nom",
       kind,
+      template,
       level,
       shortDescription: shortDescription || "Ajoute un résumé pour la carte.",
       provider,
@@ -70,7 +76,7 @@ export function CardForm({
         .filter((ability) => ability.name.trim().length > 0)
         .map((ability) => ({ name: ability.name, power: ability.power })),
     }),
-    [abilities, kind, level, name, previewUrl, provider, shortDescription],
+    [abilities, kind, level, name, previewUrl, provider, shortDescription, template],
   );
 
   const [state, formAction, pending] = useActionState(
@@ -141,6 +147,7 @@ export function CardForm({
               <option value="model">Modèle</option>
             </select>
           </div>
+          <input type="hidden" name="template" value={template} />
           <div className="space-y-1.5">
             <Label htmlFor="provider">Fournisseur</Label>
             <Input id="provider" name="provider" value={provider} onChange={(event) => setProvider(event.target.value)} className="h-10" />
@@ -170,6 +177,7 @@ export function CardForm({
             />
           </div>
         </div>
+        <TemplatePicker value={template} onChange={setTemplate} kind={kind} />
         <div className="space-y-1.5">
           <Label htmlFor="shortDescription">Résumé</Label>
           <Textarea

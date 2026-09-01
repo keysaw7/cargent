@@ -3,6 +3,7 @@ import type { TradingCardView } from "@/components/cards/trading-card";
 export const SPECIMEN_CARD: TradingCardView = {
   name: "Atlas",
   kind: "agent",
+  template: "classique",
   level: 8,
   shortDescription: "Lit tes sources, recoupe les faits et pose la question qui manque.",
   provider: "OpenAI",

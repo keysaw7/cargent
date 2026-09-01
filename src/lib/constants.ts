@@ -13,6 +13,21 @@ export const USERNAME_PATTERN = /^[a-z0-9_]{3,24}$/;
 
 export type CardKind = "agent" | "model";
 
+export const CARD_TEMPLATES = [
+  "classique",
+  "signal",
+  "reflet",
+  "grimoire",
+  "terminal",
+  "arcane",
+  "obsidienne",
+  "classeur",
+  "relique",
+] as const;
+
+export type CardTemplate = (typeof CARD_TEMPLATES)[number];
+export const DEFAULT_CARD_TEMPLATE: CardTemplate = "classique";
+
 export function cardKindLabel(kind: CardKind): string {
   switch (kind) {
     case "agent":

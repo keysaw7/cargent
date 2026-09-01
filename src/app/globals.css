@@ -161,6 +161,28 @@
       transparent 72%
     );
   }
+
+  .card-scanlines {
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0 2px,
+      color-mix(in oklab, var(--holo) 10%, transparent) 2px 3px
+    );
+  }
+
+  .card-parchment {
+    background:
+      radial-gradient(ellipse at 20% 10%, color-mix(in oklab, var(--ivory) 14%, transparent), transparent 52%),
+      radial-gradient(ellipse at 80% 90%, color-mix(in oklab, var(--gold) 10%, transparent), transparent 46%);
+  }
+
+  .card-halo {
+    background: radial-gradient(
+      circle at 50% 38%,
+      color-mix(in oklab, var(--arcane) 48%, transparent),
+      transparent 58%
+    );
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
