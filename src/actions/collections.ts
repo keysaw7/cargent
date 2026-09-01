@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { actionError, postgresErrorMessage, type ActionResult } from "@/lib/action-result";
+import { removeCardArtIfUnreferenced, uniqueImagePaths } from "@/lib/card-art";
 import { getCurrentProfile, requireUserId } from "@/lib/queries/auth";
 import { getOwnedCollection, listCollectionSlugs } from "@/lib/queries/collections";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -115,10 +116,10 @@ export async function deleteCollectionAction(collectionId: string): Promise<Acti
   }
 
   const supabase = await createClient();
-  const { data: cards } = await supabase
-    .from("cards")
-    .select("image_path")
-    .eq("collection_id", collectionId);
+  const [{ data: cards }, { data: drafts }] = await Promise.all([
+    supabase.from("cards").select("image_path").eq("collection_id", collectionId),
+    supabase.from("card_drafts").select("image_path").eq("collection_id", collectionId),
+  ]);
 
   const { error } = await supabase
     .from("collections")
@@ -130,10 +131,11 @@ export async function deleteCollectionAction(collectionId: string): Promise<Acti
     return actionError("Impossible de supprimer la collection.");
   }
 
-  const paths = (cards ?? []).map((card) => card.image_path).filter((path): path is string => Boolean(path));
-  if (paths.length > 0) {
-    await supabase.storage.from("card-art").remove(paths);
-  }
+  const paths = uniqueImagePaths([
+    ...(cards ?? []).map((card) => card.image_path),
+    ...(drafts ?? []).map((draft) => draft.image_path),
+  ]);
+  await Promise.all(paths.map((path) => removeCardArtIfUnreferenced(supabase, path)));
 
   const profile = await getCurrentProfile();
   if (profile) {

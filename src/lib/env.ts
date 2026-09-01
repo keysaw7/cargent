@@ -13,6 +13,15 @@ export function getSiteUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }
 
+export function getServerEnv() {
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  if (!openaiApiKey) {
+    throw new Error("OPENAI_API_KEY manquante.");
+  }
+
+  return { openaiApiKey };
+}
+
 export function publicStorageUrl(path: string | null | undefined) {
   if (!path) {
     return null;

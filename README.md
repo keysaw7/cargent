@@ -27,13 +27,14 @@ Renseigne `.env.local` :
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+OPENAI_API_KEY=sk-...
 ```
 
-N’ajoute jamais la clé `service_role` dans l’app.
+N’ajoute jamais la clé `service_role` dans l’app. `OPENAI_API_KEY` reste côté serveur.
 
 ## Base de données
 
-Dans le SQL Editor du dashboard Supabase, exécute `supabase/migrations/20260828100000_init_cargent.sql`.
+Dans le SQL Editor du dashboard Supabase, exécute les fichiers de `supabase/migrations/` dans l’ordre.
 
 Ou, avec la CLI liée au projet :
 
@@ -78,7 +79,7 @@ pnpm build
 
 1. Importer le dépôt GitHub.
 2. Framework : Next.js (détecté).
-3. Ajouter les trois variables d’environnement.
+3. Ajouter les variables d’environnement, dont `OPENAI_API_KEY` pour la génération d’illustrations.
 4. Mettre `NEXT_PUBLIC_SITE_URL` sur l’URL de production.
 5. Déployer.
 

@@ -1,15 +1,18 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { actionError, postgresErrorMessage, type ActionResult } from "@/lib/action-result";
+import { actionError, actionOk, postgresErrorMessage, type ActionResult } from "@/lib/action-result";
+import { removeCardArtIfUnreferenced } from "@/lib/card-art";
 import { getCurrentProfile, requireUserId } from "@/lib/queries/auth";
 import { getOwnedCard, listCardSlugs } from "@/lib/queries/cards";
 import { getOwnedCollection } from "@/lib/queries/collections";
 import { slugify, uniqueSlug } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
-import { cardSchema } from "@/lib/validations/card";
+import { cardDraftSchema, cardSchema } from "@/lib/validations/card";
+import type { Database } from "@/types/database";
 
 function parseCardForm(formData: FormData) {
   const abilities = JSON.parse(String(formData.get("abilities") ?? "[]")) as unknown;
@@ -43,6 +46,17 @@ async function revalidateCardPaths(username: string, collectionSlug: string, car
   if (cardId) {
     revalidatePath(`/cards/${cardId}`);
   }
+}
+
+async function deleteOwnedCardDraft(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  collectionId: string,
+  cardId?: string | null,
+) {
+  let query = supabase.from("card_drafts").delete().eq("user_id", userId).eq("collection_id", collectionId);
+  query = cardId ? query.eq("card_id", cardId) : query.is("card_id", null);
+  await query;
 }
 
 async function replaceAbilities(
@@ -110,9 +124,7 @@ export async function createCardAction(formData: FormData): Promise<ActionResult
     .single();
 
   if (error || !data) {
-    if (parsed.data.imagePath) {
-      await supabase.storage.from("card-art").remove([parsed.data.imagePath]);
-    }
+    await removeCardArtIfUnreferenced(supabase, parsed.data.imagePath);
     return actionError(postgresErrorMessage(error ?? { message: "Création impossible." }));
   }
 
@@ -120,11 +132,11 @@ export async function createCardAction(formData: FormData): Promise<ActionResult
     await replaceAbilities(supabase, data.id, parsed.data.abilities);
   } catch {
     await supabase.from("cards").delete().eq("id", data.id);
-    if (parsed.data.imagePath) {
-      await supabase.storage.from("card-art").remove([parsed.data.imagePath]);
-    }
+    await removeCardArtIfUnreferenced(supabase, parsed.data.imagePath);
     return actionError("Impossible d’enregistrer les capacités.");
   }
+
+  await deleteOwnedCardDraft(supabase, userId, collection.id);
 
   const profile = await getCurrentProfile();
   if (profile) {
@@ -170,7 +182,7 @@ export async function updateCardAction(cardId: string, formData: FormData): Prom
 
   if (error) {
     if (parsed.data.imagePath && parsed.data.imagePath !== previousImage) {
-      await supabase.storage.from("card-art").remove([parsed.data.imagePath]);
+      await removeCardArtIfUnreferenced(supabase, parsed.data.imagePath);
     }
     return actionError(postgresErrorMessage(error));
   }
@@ -181,8 +193,10 @@ export async function updateCardAction(cardId: string, formData: FormData): Prom
     return actionError("Impossible d’enregistrer les capacités.");
   }
 
+  await deleteOwnedCardDraft(supabase, userId, card.collection_id, cardId);
+
   if (previousImage && previousImage !== parsed.data.imagePath) {
-    await supabase.storage.from("card-art").remove([previousImage]);
+    await removeCardArtIfUnreferenced(supabase, previousImage);
   }
 
   const profile = await getCurrentProfile();
@@ -206,9 +220,7 @@ export async function deleteCardAction(cardId: string): Promise<ActionResult> {
     return actionError("Impossible de supprimer la carte.");
   }
 
-  if (card.image_path) {
-    await supabase.storage.from("card-art").remove([card.image_path]);
-  }
+  await removeCardArtIfUnreferenced(supabase, card.image_path);
 
   const profile = await getCurrentProfile();
   if (profile) {
@@ -220,4 +232,78 @@ export async function deleteCardAction(cardId: string): Promise<ActionResult> {
 
 export async function deleteCardForm(cardId: string): Promise<void> {
   await deleteCardAction(cardId);
+}
+
+export async function saveCardDraftAction(input: unknown): Promise<ActionResult> {
+  const parsed = cardDraftSchema.safeParse(input);
+  if (!parsed.success) {
+    return actionError(parsed.error.issues[0]?.message ?? "Brouillon invalide.");
+  }
+
+  const userId = await requireUserId();
+  const collection = await getOwnedCollection(parsed.data.collectionId, userId);
+  if (!collection) {
+    return actionError("Collection introuvable.");
+  }
+
+  if (parsed.data.cardId) {
+    const card = await getOwnedCard(parsed.data.cardId, userId);
+    if (!card || card.collection_id !== collection.id) {
+      return actionError("Carte introuvable.");
+    }
+  }
+
+  const supabase = await createClient();
+  const payload = {
+    user_id: userId,
+    collection_id: collection.id,
+    card_id: parsed.data.cardId ?? null,
+    name: parsed.data.name,
+    kind: parsed.data.kind,
+    template: parsed.data.template,
+    provider: parsed.data.provider,
+    level: parsed.data.level,
+    short_description: parsed.data.shortDescription,
+    description: parsed.data.description,
+    tags: parsed.data.tags,
+    abilities: parsed.data.abilities,
+    image_path: parsed.data.imagePath ?? null,
+    generate_prompt: parsed.data.generatePrompt,
+    is_published: parsed.data.isPublished,
+  };
+
+  let existingQuery = supabase
+    .from("card_drafts")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("collection_id", collection.id);
+  existingQuery = parsed.data.cardId
+    ? existingQuery.eq("card_id", parsed.data.cardId)
+    : existingQuery.is("card_id", null);
+
+  const { data: existing } = await existingQuery.maybeSingle();
+  const { error } = existing
+    ? await supabase.from("card_drafts").update(payload).eq("id", existing.id)
+    : await supabase.from("card_drafts").insert(payload);
+
+  if (error) {
+    return actionError(postgresErrorMessage(error));
+  }
+
+  return actionOk();
+}
+
+export async function deleteCardDraftAction(
+  collectionId: string,
+  cardId?: string | null,
+): Promise<ActionResult> {
+  const userId = await requireUserId();
+  const collection = await getOwnedCollection(collectionId, userId);
+  if (!collection) {
+    return actionError("Collection introuvable.");
+  }
+
+  const supabase = await createClient();
+  await deleteOwnedCardDraft(supabase, userId, collection.id, cardId);
+  return actionOk();
 }
