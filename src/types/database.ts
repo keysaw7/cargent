@@ -44,6 +44,7 @@ export type Database = {
       card_drafts: {
         Row: {
           abilities: Json;
+          benchmarks: Json;
           card_id: string | null;
           collection_id: string;
           created_at: string;
@@ -54,7 +55,9 @@ export type Database = {
           is_published: boolean;
           kind: Database["public"]["Enums"]["card_kind"];
           level: number;
+          model_category: Database["public"]["Enums"]["model_category"] | null;
           name: string;
+          pricing: Json;
           provider: string;
           short_description: string;
           tags: string[];
@@ -64,6 +67,7 @@ export type Database = {
         };
         Insert: {
           abilities?: Json;
+          benchmarks?: Json;
           card_id?: string | null;
           collection_id: string;
           created_at?: string;
@@ -74,7 +78,9 @@ export type Database = {
           is_published?: boolean;
           kind?: Database["public"]["Enums"]["card_kind"];
           level?: number;
+          model_category?: Database["public"]["Enums"]["model_category"] | null;
           name?: string;
+          pricing?: Json;
           provider?: string;
           short_description?: string;
           tags?: string[];
@@ -84,6 +90,7 @@ export type Database = {
         };
         Update: {
           abilities?: Json;
+          benchmarks?: Json;
           card_id?: string | null;
           collection_id?: string;
           created_at?: string;
@@ -94,7 +101,9 @@ export type Database = {
           is_published?: boolean;
           kind?: Database["public"]["Enums"]["card_kind"];
           level?: number;
+          model_category?: Database["public"]["Enums"]["model_category"] | null;
           name?: string;
+          pricing?: Json;
           provider?: string;
           short_description?: string;
           tags?: string[];
@@ -126,6 +135,85 @@ export type Database = {
           },
         ];
       };
+      card_benchmarks: {
+        Row: {
+          benchmark_key: string;
+          benchmark_version: string | null;
+          card_id: string;
+          created_at: string;
+          id: string;
+          measured_at: string | null;
+          score: number;
+          source_url: string | null;
+        };
+        Insert: {
+          benchmark_key: string;
+          benchmark_version?: string | null;
+          card_id: string;
+          created_at?: string;
+          id?: string;
+          measured_at?: string | null;
+          score: number;
+          source_url?: string | null;
+        };
+        Update: {
+          benchmark_key?: string;
+          benchmark_version?: string | null;
+          card_id?: string;
+          created_at?: string;
+          id?: string;
+          measured_at?: string | null;
+          score?: number;
+          source_url?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "card_benchmarks_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      card_model_pricing: {
+        Row: {
+          card_id: string;
+          created_at: string;
+          image_usd: number | null;
+          input_usd_per_million_tokens: number | null;
+          output_usd_per_million_tokens: number | null;
+          updated_at: string;
+          video_second_usd: number | null;
+        };
+        Insert: {
+          card_id: string;
+          created_at?: string;
+          image_usd?: number | null;
+          input_usd_per_million_tokens?: number | null;
+          output_usd_per_million_tokens?: number | null;
+          updated_at?: string;
+          video_second_usd?: number | null;
+        };
+        Update: {
+          card_id?: string;
+          created_at?: string;
+          image_usd?: number | null;
+          input_usd_per_million_tokens?: number | null;
+          output_usd_per_million_tokens?: number | null;
+          updated_at?: string;
+          video_second_usd?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "card_model_pricing_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: true;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       cards: {
         Row: {
           collection_id: string;
@@ -136,6 +224,7 @@ export type Database = {
           is_published: boolean;
           kind: Database["public"]["Enums"]["card_kind"];
           level: number;
+          model_category: Database["public"]["Enums"]["model_category"] | null;
           name: string;
           provider: string | null;
           short_description: string;
@@ -153,6 +242,7 @@ export type Database = {
           is_published?: boolean;
           kind: Database["public"]["Enums"]["card_kind"];
           level: number;
+          model_category?: Database["public"]["Enums"]["model_category"] | null;
           name: string;
           provider?: string | null;
           short_description: string;
@@ -170,6 +260,7 @@ export type Database = {
           is_published?: boolean;
           kind?: Database["public"]["Enums"]["card_kind"];
           level?: number;
+          model_category?: Database["public"]["Enums"]["model_category"] | null;
           name?: string;
           provider?: string | null;
           short_description?: string;
@@ -329,6 +420,7 @@ export type Database = {
     };
     Enums: {
       card_kind: "agent" | "model";
+      model_category: "code" | "image" | "video";
       card_template:
         | "classique"
         | "signal"
@@ -350,5 +442,7 @@ export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Collection = Database["public"]["Tables"]["collections"]["Row"];
 export type Card = Database["public"]["Tables"]["cards"]["Row"];
 export type CardAbility = Database["public"]["Tables"]["card_abilities"]["Row"];
+export type CardBenchmark = Database["public"]["Tables"]["card_benchmarks"]["Row"];
+export type CardModelPricing = Database["public"]["Tables"]["card_model_pricing"]["Row"];
 export type CardDraft = Database["public"]["Tables"]["card_drafts"]["Row"];
 export type ImageGeneration = Database["public"]["Tables"]["image_generations"]["Row"];

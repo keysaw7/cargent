@@ -73,6 +73,158 @@ describe("cardSchema", () => {
       );
     }
   });
+
+  it("exige une catégorie pour un modèle, mais accepte zéro score", () => {
+    const withoutCategory = cardSchema.safeParse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: null,
+      benchmarks: [],
+    });
+    expect(withoutCategory.success).toBe(false);
+
+    const parsed = cardSchema.parse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [],
+    });
+    expect(parsed.benchmarks).toEqual([]);
+  });
+
+  it("refuse un benchmark du mauvais preset et un doublon", () => {
+    const benchmark = {
+      key: "vbench",
+      score: 80,
+      version: "1.0",
+      sourceUrl: "https://example.com/source",
+      measuredAt: "2026-07-01",
+    };
+    const wrongPreset = cardSchema.safeParse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [benchmark],
+    });
+    expect(wrongPreset.success).toBe(false);
+
+    const duplicate = cardSchema.safeParse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [
+        { ...benchmark, key: "swe-bench-pro" },
+        { ...benchmark, key: "swe-bench-pro", score: 70 },
+      ],
+    });
+    expect(duplicate.success).toBe(false);
+  });
+
+  it("accepte un score seul et une provenance partielle", () => {
+    const scoreOnly = cardSchema.parse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [{ key: "swe-bench-pro", score: 80 }],
+    });
+    expect(scoreOnly.benchmarks[0]?.score).toBe(80);
+
+    const partial = cardSchema.parse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [
+        {
+          key: "swe-bench-pro",
+          score: 80,
+          version: "2026-08",
+          sourceUrl: "",
+          measuredAt: "",
+        },
+      ],
+    });
+    expect(partial.benchmarks[0]?.version).toBe("2026-08");
+  });
+
+  it("refuse une URL non https et une date invalide si elles sont renseignées", () => {
+    const badUrl = cardSchema.safeParse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [
+        {
+          key: "swe-bench-pro",
+          score: 80,
+          version: "",
+          sourceUrl: "http://example.com/source",
+          measuredAt: "",
+        },
+      ],
+    });
+    expect(badUrl.success).toBe(false);
+
+    const badDate = cardSchema.safeParse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [
+        {
+          key: "swe-bench-pro",
+          score: 80,
+          measuredAt: "07-01-2026",
+        },
+      ],
+    });
+    expect(badDate.success).toBe(false);
+  });
+
+  it("accepte une tarification code complète et refuse un input seul", () => {
+    const complete = cardSchema.parse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [],
+      pricing: {
+        inputUsdPerMillion: 5,
+        outputUsdPerMillion: 25,
+      },
+    });
+    expect(complete.pricing?.inputUsdPerMillion).toBe(5);
+
+    const incomplete = cardSchema.safeParse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [],
+      pricing: {
+        inputUsdPerMillion: 5,
+      },
+    });
+    expect(incomplete.success).toBe(false);
+  });
+
+  it("refuse un prix négatif", () => {
+    const result = cardSchema.safeParse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "image",
+      pricing: {
+        imageUsd: -1,
+      },
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("cardDraftSchema", () => {

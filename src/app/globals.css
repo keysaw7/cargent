@@ -42,6 +42,12 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-bench-1: var(--bench-1);
+  --color-bench-2: var(--bench-2);
+  --color-bench-3: var(--bench-3);
+  --color-bench-4: var(--bench-4);
+  --color-bench-5: var(--bench-5);
+  --color-bench-6: var(--bench-6);
   --font-sans: "Space Grotesk", "Space Grotesk Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Cormorant SC", "Cormorant SC Fallback", ui-serif, Georgia, serif;
   --font-mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, monospace;
@@ -82,6 +88,12 @@
   --chart-3: #3457d5;
   --chart-4: #f0e8d5;
   --chart-5: #12182c;
+  --bench-1: #d6a94a;
+  --bench-2: #66e3ff;
+  --bench-3: #8ea2ff;
+  --bench-4: #c8f542;
+  --bench-5: #ff7a59;
+  --bench-6: #d4a5ff;
   --radius: 0.4rem;
   --sidebar: #12182c;
   --sidebar-foreground: #f0e8d5;
@@ -182,6 +194,11 @@
       color-mix(in oklab, var(--arcane) 48%, transparent),
       transparent 58%
     );
+  }
+
+  .card-flip-face {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 }
 

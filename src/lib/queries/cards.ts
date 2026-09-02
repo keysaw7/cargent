@@ -13,6 +13,8 @@ export type ExploreFilters = {
 const cardSelect = `
   *,
   card_abilities (*),
+  card_benchmarks (*),
+  card_model_pricing (*),
   collections!inner (
     id,
     name,
@@ -26,11 +28,13 @@ const cardSelect = `
   )
 `;
 
+const ownedCardSelect = "*, card_abilities(*), card_benchmarks(*), card_model_pricing(*), collections!inner(id, owner_id, name, slug)";
+
 export async function listCardsForCollection(collectionId: string, publishedOnly: boolean) {
   const supabase = await createClient();
   let query = supabase
     .from("cards")
-    .select("*, card_abilities(*)")
+    .select("*, card_abilities(*), card_benchmarks(*), card_model_pricing(*)")
     .eq("collection_id", collectionId)
     .order("created_at", { ascending: false })
     .order("position", { referencedTable: "card_abilities", ascending: true });
@@ -61,7 +65,7 @@ export async function getOwnedCard(cardId: string, ownerId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("cards")
-    .select("*, card_abilities(*), collections!inner(id, owner_id, name, slug)")
+    .select(ownedCardSelect)
     .eq("id", cardId)
     .eq("collections.owner_id", ownerId)
     .maybeSingle();

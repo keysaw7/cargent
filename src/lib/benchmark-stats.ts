@@ -1,0 +1,100 @@
+import {
+  getBenchmarkDefinition,
+  getBenchmarkPreset,
+  MAX_BENCHMARKS_PER_PRESET,
+  normalizeBenchmarkScore,
+  type ModelCategory,
+} from "@/lib/model-benchmarks";
+
+export type ScoredBenchmark = {
+  key: string;
+  score: number;
+};
+
+export const STRENGTH_TIERS = ["Low", "Medium", "High", "XHigh"] as const;
+export type StrengthTier = (typeof STRENGTH_TIERS)[number];
+
+export function normalizePresentScore(
+  category: ModelCategory,
+  key: string,
+  score: number,
+): number | null {
+  const definition = getBenchmarkDefinition(category, key);
+  if (!definition || !Number.isFinite(score)) {
+    return null;
+  }
+  return normalizeBenchmarkScore(definition, score);
+}
+
+export function strengthTierFromNormalized(normalized: number): StrengthTier {
+  if (normalized < 25) {
+    return "Low";
+  }
+  if (normalized < 50) {
+    return "Medium";
+  }
+  if (normalized < 75) {
+    return "High";
+  }
+  return "XHigh";
+}
+
+export function selectBestBenchmark(
+  category: ModelCategory,
+  scores: ScoredBenchmark[],
+): (ScoredBenchmark & { normalized: number }) | null {
+  const preset = getBenchmarkPreset(category);
+  let best: (ScoredBenchmark & { normalized: number }) | null = null;
+  let bestIndex = Number.POSITIVE_INFINITY;
+
+  for (const entry of scores) {
+    const normalized = normalizePresentScore(category, entry.key, entry.score);
+    if (normalized === null) {
+      continue;
+    }
+    const presetIndex = preset.findIndex((definition) => definition.key === entry.key);
+    if (presetIndex < 0) {
+      continue;
+    }
+    if (
+      !best ||
+      normalized > best.normalized ||
+      (normalized === best.normalized && presetIndex < bestIndex)
+    ) {
+      best = { ...entry, normalized };
+      bestIndex = presetIndex;
+    }
+  }
+
+  return best;
+}
+
+export function averageNormalizedScore(
+  category: ModelCategory,
+  scores: ScoredBenchmark[],
+): number | null {
+  const values = scores.flatMap((entry) => {
+    const normalized = normalizePresentScore(category, entry.key, entry.score);
+    return normalized === null ? [] : [normalized];
+  });
+
+  if (values.length === 0) {
+    return null;
+  }
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+export function benchmarkCompleteness(
+  category: ModelCategory,
+  scores: ScoredBenchmark[],
+): { filled: number; total: number } {
+  const presetKeys = new Set(getBenchmarkPreset(category).map((definition) => definition.key));
+  const filled = new Set(
+    scores
+      .filter((entry) => Number.isFinite(entry.score) && presetKeys.has(entry.key))
+      .map((entry) => entry.key),
+  ).size;
+
+  return { filled, total: MAX_BENCHMARKS_PER_PRESET };
+}

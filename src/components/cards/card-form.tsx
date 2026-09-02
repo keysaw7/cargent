@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { deleteCardDraftAction, saveCardDraftAction } from "@/actions/cards";
 import { GeneratedImageHistory } from "@/components/cards/generated-image-history";
 import { LevelStarPicker } from "@/components/cards/level-star-picker";
+import { ModelCategoryPicker } from "@/components/cards/model-category-picker";
 import { TemplatePicker } from "@/components/cards/template-picker";
 import { TradingCard } from "@/components/cards/trading-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -14,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { ActionResult } from "@/lib/action-result";
-import { getCardFormValues, type CardFormAbility } from "@/lib/card-draft";
+import { getCardFormValues, emptyBenchmarksFor, type CardFormAbility } from "@/lib/card-draft";
 import {
   CARD_DRAFT_AUTOSAVE_MS,
   IMAGE_GENERATION_HISTORY_LIMIT,
@@ -38,13 +39,48 @@ import {
   type CardTemplate,
 } from "@/lib/constants";
 import { publicStorageUrl } from "@/lib/env";
+import {
+  benchmarkUnitLabel,
+  getBenchmarkDefinition,
+  getBenchmarkPreset,
+  MAX_BENCHMARK_VERSION,
+  MAX_SOURCE_URL,
+  type ModelCategory,
+} from "@/lib/model-benchmarks";
+import { emptyCardFormPricing, formPricingHasValue, formPricingToView } from "@/lib/model-pricing";
 import { CARD_BUCKET, cardArtPath, validateImageFile } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { httpsUrlSchema, publishedBenchmarkSchema } from "@/lib/validations/card";
 import type { CardDraft } from "@/types/database";
 import type { CardWithAbilities, ImageGenerationPreview } from "@/types/models";
 
 const emptyAbility: CardFormAbility = { name: "", description: "", power: 50 };
+
+function AdvancedFields({
+  initiallyOpen,
+  children,
+}: {
+  initiallyOpen: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(initiallyOpen);
+
+  return (
+    <details className="group rounded-md border border-gold/10" open={open}>
+      <summary
+        className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-muted-foreground marker:content-none [&::-webkit-details-marker]:hidden"
+        onClick={(event) => {
+          event.preventDefault();
+          setOpen((current) => !current);
+        }}
+      >
+        Avancé
+      </summary>
+      {children}
+    </details>
+  );
+}
 
 export function CardForm({
   collectionId,
@@ -71,6 +107,9 @@ export function CardForm({
   const [description, setDescription] = useState(initial.description);
   const [tags, setTags] = useState(initial.tags);
   const [abilities, setAbilities] = useState<CardFormAbility[]>(initial.abilities);
+  const [modelCategory, setModelCategory] = useState<ModelCategory | null>(initial.modelCategory);
+  const [benchmarks, setBenchmarks] = useState(initial.benchmarks);
+  const [pricing, setPricing] = useState(initial.pricing);
   const [imagePath, setImagePath] = useState(initial.imagePath);
   const [previewUrl, setPreviewUrl] = useState(publicStorageUrl(initial.imagePath));
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -93,8 +132,19 @@ export function CardForm({
       abilities: abilities
         .filter((ability) => ability.name.trim().length > 0)
         .map((ability) => ({ name: ability.name, power: ability.power })),
+      modelCategory: kind === "model" ? modelCategory : null,
+      benchmarks:
+        kind === "model"
+          ? benchmarks.flatMap((benchmark) => {
+              const score = Number(benchmark.score);
+              return benchmark.score.trim() && Number.isFinite(score)
+                ? [{ key: benchmark.key, score }]
+                : [];
+            })
+          : [],
+      pricing: kind === "model" && modelCategory ? formPricingToView(modelCategory, pricing) : null,
     }),
-    [abilities, kind, level, name, previewUrl, provider, shortDescription, template],
+    [abilities, benchmarks, kind, level, modelCategory, name, previewUrl, pricing, provider, shortDescription, template],
   );
 
   const tagList = useMemo(
@@ -126,6 +176,51 @@ export function CardForm({
       ability.power < MIN_ABILITY_POWER ||
       ability.power > MAX_ABILITY_POWER,
   );
+  const scoredBenchmarks = benchmarks.flatMap((benchmark) => {
+    if (!benchmark.score.trim()) {
+      return [];
+    }
+    return [
+      {
+        key: benchmark.key,
+        score: Number(benchmark.score),
+        version: benchmark.version.trim(),
+        sourceUrl: benchmark.sourceUrl.trim(),
+        measuredAt: benchmark.measuredAt.trim(),
+      },
+    ];
+  });
+  const benchmarksInvalid =
+    kind === "model" &&
+    (!modelCategory ||
+      scoredBenchmarks.some((benchmark) => {
+        const parsed = publishedBenchmarkSchema.safeParse(benchmark);
+        if (!parsed.success || !modelCategory) {
+          return true;
+        }
+        const definition = getBenchmarkDefinition(modelCategory, parsed.data.key);
+        return (
+          !definition ||
+          parsed.data.score < definition.domain.min ||
+          parsed.data.score > definition.domain.max
+        );
+      }));
+  const pricingActive = kind === "model" && formPricingHasValue(pricing, modelCategory);
+  const pricingInvalid =
+    pricingActive &&
+    ((modelCategory === "code" &&
+      (!pricing.inputUsdPerMillion.trim() ||
+        !pricing.outputUsdPerMillion.trim() ||
+        !Number.isFinite(Number(pricing.inputUsdPerMillion)) ||
+        !Number.isFinite(Number(pricing.outputUsdPerMillion)) ||
+        Number(pricing.inputUsdPerMillion) < 0 ||
+        Number(pricing.outputUsdPerMillion) < 0)) ||
+      (modelCategory === "image" &&
+        (!pricing.imageUsd.trim() || !Number.isFinite(Number(pricing.imageUsd)) || Number(pricing.imageUsd) < 0)) ||
+      (modelCategory === "video" &&
+        (!pricing.videoSecondUsd.trim() ||
+          !Number.isFinite(Number(pricing.videoSecondUsd)) ||
+          Number(pricing.videoSecondUsd) < 0)));
   const formInvalid =
     name.trim().length < MIN_CARD_NAME ||
     nameState.tooLong ||
@@ -134,11 +229,33 @@ export function CardForm({
     shortDescriptionState.tooLong ||
     descriptionState.invalid ||
     tagsInvalid ||
-    abilitiesInvalid;
+    (kind === "agent" && abilitiesInvalid) ||
+    (kind === "model" && (!modelCategory || benchmarksInvalid || pricingInvalid));
 
   const [state, formAction, pending] = useActionState(
     async (_prev: ActionResult | null, formData: FormData) => {
-      formData.set("abilities", JSON.stringify(abilities.filter((ability) => ability.name.trim())));
+      formData.set(
+        "abilities",
+        JSON.stringify(kind === "agent" ? abilities.filter((ability) => ability.name.trim()) : []),
+      );
+      formData.set("benchmarks", JSON.stringify(kind === "model" ? scoredBenchmarks : []));
+      formData.set(
+        "pricing",
+        JSON.stringify(
+          kind === "model" && pricingActive
+            ? {
+                inputUsdPerMillion: pricing.inputUsdPerMillion.trim()
+                  ? Number(pricing.inputUsdPerMillion)
+                  : null,
+                outputUsdPerMillion: pricing.outputUsdPerMillion.trim()
+                  ? Number(pricing.outputUsdPerMillion)
+                  : null,
+                imageUsd: pricing.imageUsd.trim() ? Number(pricing.imageUsd) : null,
+                videoSecondUsd: pricing.videoSecondUsd.trim() ? Number(pricing.videoSecondUsd) : null,
+              }
+            : null,
+        ),
+      );
       formData.set("imagePath", imagePath ?? "");
       formData.set("isPublished", String(publish));
       formData.set("collectionId", collectionId);
@@ -160,12 +277,16 @@ export function CardForm({
       description,
       tags: tagList,
       abilities,
+      modelCategory,
+      benchmarks,
+      pricing,
       imagePath,
       generatePrompt,
       isPublished: publish,
     }),
     [
       abilities,
+      benchmarks,
       card?.id,
       collectionId,
       description,
@@ -173,7 +294,9 @@ export function CardForm({
       imagePath,
       kind,
       level,
+      modelCategory,
       name,
+      pricing,
       provider,
       publish,
       shortDescription,
@@ -216,6 +339,9 @@ export function CardForm({
     setDescription(values.description);
     setTags(values.tags);
     setAbilities(values.abilities);
+    setModelCategory(values.modelCategory);
+    setBenchmarks(values.benchmarks);
+    setPricing(values.pricing);
     setImagePath(values.imagePath);
     setPreviewUrl(publicStorageUrl(values.imagePath));
     setGeneratePrompt(values.generatePrompt);
@@ -320,6 +446,19 @@ export function CardForm({
     }
   }
 
+  function onCategoryChange(next: ModelCategory) {
+    const hasScores = benchmarks.some((benchmark) => benchmark.score.trim().length > 0);
+    if (modelCategory && next !== modelCategory && hasScores) {
+      const confirmed = window.confirm("Changer de catégorie remplace les scores saisis. Continuer ?");
+      if (!confirmed) {
+        return;
+      }
+    }
+    setModelCategory(next);
+    setBenchmarks(emptyBenchmarksFor(next));
+    setPricing(emptyCardFormPricing());
+  }
+
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
       <form action={formAction} className="space-y-5">
@@ -351,6 +490,7 @@ export function CardForm({
             </select>
           </div>
           <input type="hidden" name="template" value={template} />
+          <input type="hidden" name="modelCategory" value={kind === "model" ? (modelCategory ?? "") : ""} />
           <div className="space-y-1.5">
             <FieldLimit htmlFor="provider" label="Fournisseur" value={provider} max={MAX_PROVIDER} />
             <Input
@@ -367,31 +507,11 @@ export function CardForm({
             <Label htmlFor="level">Niveau {level}</Label>
             <LevelStarPicker id="level" name="level" value={level} onChange={setLevel} />
           </div>
-          <div className="space-y-1.5">
-            <div className="flex items-baseline justify-between gap-3">
-              <Label htmlFor="tags">Tags</Label>
-              <p
-                className={cn(
-                  "font-mono text-[11px] tabular-nums",
-                  tagsInvalid ? "text-destructive" : "text-muted-foreground",
-                )}
-              >
-                {tagList.length}/{MAX_TAGS}
-                {tagList.some((tag) => tag.length > MAX_TAG_LENGTH)
-                  ? ` · max ${MAX_TAG_LENGTH} car.`
-                  : ` · ${MAX_TAG_LENGTH} car./tag`}
-              </p>
+          {kind === "model" ? (
+            <div className="space-y-1.5">
+              <ModelCategoryPicker value={modelCategory} onChange={onCategoryChange} />
             </div>
-            <Input
-              id="tags"
-              name="tags"
-              value={tags}
-              onChange={(event) => setTags(event.target.value)}
-              placeholder="recherche, code, voix"
-              aria-invalid={tagsInvalid || undefined}
-              className="h-10"
-            />
-          </div>
+          ) : null}
         </div>
         <TemplatePicker value={template} onChange={setTemplate} kind={kind} />
         <div className="space-y-1.5">
@@ -423,6 +543,7 @@ export function CardForm({
             aria-invalid={descriptionState.invalid || undefined}
           />
         </div>
+        {kind === "agent" ? (
         <fieldset className="space-y-3">
           <legend className="flex w-full items-baseline justify-between gap-3 text-sm font-medium">
             <span>Capacités</span>
@@ -530,6 +651,197 @@ export function CardForm({
             </Button>
           ) : null}
         </fieldset>
+        ) : modelCategory ? (
+        <div className="space-y-5">
+          <fieldset className="space-y-3">
+            <legend className="flex w-full items-baseline justify-between gap-3 text-sm font-medium">
+              <span>Benchmarks</span>
+              <span className="font-mono text-[11px] font-normal tabular-nums text-muted-foreground">
+                {scoredBenchmarks.length}/{getBenchmarkPreset(modelCategory).length}
+              </span>
+            </legend>
+            {benchmarks.map((benchmark, index) => {
+              const definition = getBenchmarkDefinition(modelCategory, benchmark.key);
+              if (!definition) {
+                return null;
+              }
+              const scoreValue = benchmark.score.trim();
+              const parsedScore = Number(benchmark.score);
+              const scoreInvalid =
+                scoreValue.length > 0 &&
+                (!Number.isFinite(parsedScore) ||
+                  parsedScore < definition.domain.min ||
+                  parsedScore > definition.domain.max);
+              const versionState = fieldLengthState(benchmark.version, MAX_BENCHMARK_VERSION);
+              const sourceFilled = benchmark.sourceUrl.trim().length > 0;
+              const sourceInvalid = sourceFilled && httpsUrlSchema.safeParse(benchmark.sourceUrl).success === false;
+              const dateFilled = benchmark.measuredAt.trim().length > 0;
+              const dateInvalid = dateFilled && !/^\d{4}-\d{2}-\d{2}$/.test(benchmark.measuredAt);
+              const hasAdvanced =
+                benchmark.version.trim().length > 0 || sourceFilled || dateFilled;
+
+              return (
+                <div key={benchmark.key} className="space-y-3 rounded-lg border border-gold/15 p-3">
+                  <div>
+                    <p className="text-sm font-medium">{definition.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{definition.description}</p>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <Label htmlFor={`benchmark-score-${index}`}>
+                          Score ({benchmarkUnitLabel(definition)})
+                        </Label>
+                        <p
+                          className={cn(
+                            "font-mono text-[11px] tabular-nums",
+                            scoreInvalid ? "text-destructive" : "text-muted-foreground",
+                          )}
+                        >
+                          {definition.domain.min}–{definition.domain.max}
+                        </p>
+                      </div>
+                      <Input
+                        id={`benchmark-score-${index}`}
+                        type="number"
+                        step="any"
+                        min={definition.domain.min}
+                        max={definition.domain.max}
+                        value={benchmark.score}
+                        aria-invalid={scoreInvalid || undefined}
+                        onChange={(event) => {
+                          const next = [...benchmarks];
+                          next[index] = { ...benchmark, score: event.target.value };
+                          setBenchmarks(next);
+                        }}
+                      />
+                    </div>
+                    <AdvancedFields initiallyOpen={hasAdvanced}>
+                      <div className="grid gap-3 border-t border-gold/10 p-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <FieldLimit
+                            htmlFor={`benchmark-version-${index}`}
+                            label="Version"
+                            value={benchmark.version}
+                            max={MAX_BENCHMARK_VERSION}
+                          />
+                          <Input
+                            id={`benchmark-version-${index}`}
+                            value={benchmark.version}
+                            placeholder="ex. 2026-08"
+                            maxLength={MAX_BENCHMARK_VERSION}
+                            aria-invalid={versionState.invalid || undefined}
+                            onChange={(event) => {
+                              const next = [...benchmarks];
+                              next[index] = { ...benchmark, version: event.target.value };
+                              setBenchmarks(next);
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <FieldLimit
+                            htmlFor={`benchmark-source-${index}`}
+                            label="Source"
+                            value={benchmark.sourceUrl}
+                            max={MAX_SOURCE_URL}
+                          />
+                          <Input
+                            id={`benchmark-source-${index}`}
+                            type="url"
+                            value={benchmark.sourceUrl}
+                            placeholder="https://"
+                            maxLength={MAX_SOURCE_URL}
+                            aria-invalid={sourceInvalid || undefined}
+                            onChange={(event) => {
+                              const next = [...benchmarks];
+                              next[index] = { ...benchmark, sourceUrl: event.target.value };
+                              setBenchmarks(next);
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <Label htmlFor={`benchmark-date-${index}`}>Date de mesure</Label>
+                          <Input
+                            id={`benchmark-date-${index}`}
+                            type="date"
+                            value={benchmark.measuredAt}
+                            aria-invalid={dateInvalid || undefined}
+                            onChange={(event) => {
+                              const next = [...benchmarks];
+                              next[index] = { ...benchmark, measuredAt: event.target.value };
+                              setBenchmarks(next);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </AdvancedFields>
+                  </div>
+                </div>
+              );
+            })}
+          </fieldset>
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium">Tarification</legend>
+            <p className="text-xs text-muted-foreground">Optionnel. Les champs vides n’apparaissent pas sur la carte.</p>
+            {modelCategory === "code" ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="price-input">Input USD / 1M tokens</Label>
+                  <Input
+                    id="price-input"
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={pricing.inputUsdPerMillion}
+                    onChange={(event) => setPricing({ ...pricing, inputUsdPerMillion: event.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="price-output">Output USD / 1M tokens</Label>
+                  <Input
+                    id="price-output"
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={pricing.outputUsdPerMillion}
+                    onChange={(event) => setPricing({ ...pricing, outputUsdPerMillion: event.target.value })}
+                  />
+                </div>
+              </div>
+            ) : null}
+            {modelCategory === "image" ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="price-image">USD par image</Label>
+                <Input
+                  id="price-image"
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={pricing.imageUsd}
+                  onChange={(event) => setPricing({ ...pricing, imageUsd: event.target.value })}
+                />
+              </div>
+            ) : null}
+            {modelCategory === "video" ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="price-video">USD par seconde</Label>
+                <Input
+                  id="price-video"
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={pricing.videoSecondUsd}
+                  onChange={(event) => setPricing({ ...pricing, videoSecondUsd: event.target.value })}
+                />
+              </div>
+            ) : null}
+          </fieldset>
+        </div>
+        ) : (
+          <p className="rounded-lg border border-gold/20 px-3 py-3 text-sm text-muted-foreground">
+            Choisis une catégorie pour afficher les benchmarks associés.
+          </p>
+        )}
         {hasDraft ? (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-gold/20 px-3 py-2">
             <p className="text-xs text-muted-foreground">Brouillon enregistré</p>

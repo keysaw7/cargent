@@ -1,4 +1,11 @@
-import type { Card, CardAbility, Collection, Profile } from "@/types/database";
+import type {
+  Card,
+  CardAbility,
+  CardBenchmark,
+  CardModelPricing,
+  Collection,
+  Profile,
+} from "@/types/database";
 
 export type ImageGenerationPreview = {
   id: string;
@@ -13,12 +20,15 @@ export type CollectionWithOwner = Collection & {
   cards?: { count: number }[];
 };
 
-export type CardWithAbilities = Card & {
+export type CardWithDetails = Card & {
   card_abilities: CardAbility[];
+  card_benchmarks: CardBenchmark[];
+  card_model_pricing: CardModelPricing | CardModelPricing[] | null;
 };
 
-export type PublicCard = Card & {
-  card_abilities: CardAbility[];
+export type CardWithAbilities = CardWithDetails;
+
+export type PublicCard = CardWithDetails & {
   collections: Collection & {
     profiles: Pick<Profile, "username" | "display_name">;
   };

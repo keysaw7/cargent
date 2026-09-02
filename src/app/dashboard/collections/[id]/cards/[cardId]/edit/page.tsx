@@ -29,7 +29,7 @@ export default async function EditCardPage({ params }: { params: Params }) {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-12">
-      <PageHeader eyebrow="Carte" title={`Modifier ${card.name}`} description="Les capacités sont réécrites à chaque enregistrement." />
+      <PageHeader eyebrow="Carte" title={`Modifier ${card.name}`} description="Les capacités d’un agent et les benchmarks d’un modèle sont réécrits à chaque enregistrement." />
       <div className="mt-10">
         <CardForm
           collectionId={card.collection_id}

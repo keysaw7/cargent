@@ -3,10 +3,21 @@
 import Image from "next/image";
 import { useEffect, useId, useState } from "react";
 
+import { BenchmarkStrengthLine } from "@/components/cards/benchmark-strength-line";
 import { StarRow } from "@/components/cards/star-row";
 import { getCardTemplateStyle } from "@/lib/card-templates";
 import { cardKindLabel, DEFAULT_CARD_TEMPLATE, type CardKind, type CardTemplate } from "@/lib/constants";
+import type { ModelCategory } from "@/lib/model-benchmarks";
+import { formatPricingCompact, type ModelPricingView } from "@/lib/model-pricing";
 import { cn } from "@/lib/utils";
+
+export type TradingCardBenchmark = {
+  key: string;
+  score: number;
+  version?: string;
+  sourceUrl?: string;
+  measuredAt?: string;
+};
 
 export type TradingCardView = {
   name: string;
@@ -17,6 +28,9 @@ export type TradingCardView = {
   provider?: string | null;
   imageUrl?: string | null;
   abilities: { name: string; power: number }[];
+  modelCategory?: ModelCategory | null;
+  benchmarks?: TradingCardBenchmark[];
+  pricing?: ModelPricingView | null;
 };
 
 type TradingCardProps = {
@@ -136,15 +150,40 @@ export function TradingCard({ card, className, size = "md", interactive = true }
                 <p className={cn("absolute right-2 bottom-2", style.providerClass)}>{card.provider}</p>
               ) : null}
             </div>
-            <p className={cn("relative z-10 line-clamp-3 px-3 pt-3", style.bodyClass)}>{card.shortDescription}</p>
-            <ul className="relative z-10 mt-auto space-y-1.5 px-3 pb-3">
-              {card.abilities.slice(0, 5).map((ability) => (
-                <li key={ability.name} className={cn("flex items-baseline justify-between gap-3 pt-1.5", style.abilityRowClass)}>
-                  <span className={cn("min-w-0 truncate", style.abilityNameClass)}>{ability.name}</span>
-                  <span className={cn("shrink-0", style.abilityPowerClass)}>{ability.power}</span>
-                </li>
-              ))}
-            </ul>
+            {card.kind === "model" ? (
+              <div className="relative z-10 mt-auto pt-3">
+                {!card.modelCategory ? (
+                  <p className="px-3 pb-3 font-mono text-[11px] tracking-[0.12em] text-ivory/55 uppercase">
+                    Catégorie non renseignée
+                  </p>
+                ) : (
+                  <BenchmarkStrengthLine
+                    category={card.modelCategory}
+                    scores={(card.benchmarks ?? []).map((benchmark) => ({
+                      key: benchmark.key,
+                      score: benchmark.score,
+                    }))}
+                  />
+                )}
+                {card.pricing ? (
+                  <p className={cn("px-3 pb-3 font-mono text-[10px] tracking-[0.04em]", style.abilityPowerClass)}>
+                    {formatPricingCompact(card.pricing)}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <p className={cn("relative z-10 line-clamp-3 px-3 pt-3", style.bodyClass)}>{card.shortDescription}</p>
+                <ul className="relative z-10 mt-auto space-y-1.5 px-3 pb-3">
+                  {card.abilities.slice(0, 5).map((ability) => (
+                    <li key={ability.name} className={cn("flex items-baseline justify-between gap-3 pt-1.5", style.abilityRowClass)}>
+                      <span className={cn("min-w-0 truncate", style.abilityNameClass)}>{ability.name}</span>
+                      <span className={cn("shrink-0", style.abilityPowerClass)}>{ability.power}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
             <div
               className={cn(
                 "pointer-events-none absolute inset-0 opacity-0 mix-blend-screen transition-opacity duration-200",
