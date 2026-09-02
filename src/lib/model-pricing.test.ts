@@ -5,6 +5,7 @@ import {
   formPricingHasValue,
   formPricingToView,
   formatPricingCompact,
+  formatPricingCorner,
   formatUsd,
   rowToPricingView,
 } from "@/lib/model-pricing";
@@ -27,6 +28,15 @@ describe("model-pricing", () => {
     expect(formatPricingCompact({ category: "image", imageUsd: 0.04 })).toBe("$0.04 / image");
     expect(formatPricingCompact({ category: "video", videoSecondUsd: 0 })).toBe("$0.00 / s");
     expect(formatUsd(0.0125)).toBe("$0.0125");
+    expect(
+      formatPricingCorner({
+        category: "code",
+        inputUsdPerMillion: 5,
+        outputUsdPerMillion: 20,
+      }),
+    ).toBe("5$/20$");
+    expect(formatPricingCorner({ category: "image", imageUsd: 0.04 })).toBe("0.04$/img");
+    expect(formatPricingCorner({ category: "video", videoSecondUsd: 0.5 })).toBe("0.5$/s");
   });
 
   it("exige input et output pour le preset code", () => {

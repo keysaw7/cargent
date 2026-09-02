@@ -30,7 +30,10 @@ describe("cardToView", () => {
           id: "b2",
           card_id: "card-1",
           benchmark_key: "livecodebench",
-          score: 60,
+          low_score: null,
+          medium_score: null,
+          high_score: null,
+          xhigh_score: 60,
           benchmark_version: "2026",
           source_url: "https://livecodebench.github.io",
           measured_at: "2026-07-01",
@@ -40,7 +43,10 @@ describe("cardToView", () => {
           id: "b1",
           card_id: "card-1",
           benchmark_key: "swe-bench-pro",
-          score: 80,
+          low_score: 40,
+          medium_score: 55,
+          high_score: 70,
+          xhigh_score: 80,
           benchmark_version: "2026",
           source_url: "https://swebench.com/pro",
           measured_at: "2026-07-01",
@@ -88,7 +94,10 @@ describe("cardToView", () => {
           id: "b1",
           card_id: "card-1",
           benchmark_key: "swe-bench-pro",
-          score: 80,
+          low_score: null,
+          medium_score: null,
+          high_score: null,
+          xhigh_score: 80,
           benchmark_version: null,
           source_url: null,
           measured_at: null,
@@ -99,7 +108,13 @@ describe("cardToView", () => {
     } as CardWithAbilities;
 
     expect(cardToView(card).benchmarks).toEqual([
-      { key: "swe-bench-pro", score: 80, version: undefined, sourceUrl: undefined, measuredAt: undefined },
+      {
+        key: "swe-bench-pro",
+        efforts: { low: null, medium: null, high: null, xhigh: 80 },
+        version: undefined,
+        sourceUrl: undefined,
+        measuredAt: undefined,
+      },
     ]);
   });
 });

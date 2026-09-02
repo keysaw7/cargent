@@ -1,4 +1,9 @@
 import {
+  effectiveEffort,
+  hasAnyEffort,
+  type BenchmarkEffortScores,
+} from "@/lib/benchmark-efforts";
+import {
   getBenchmarkDefinition,
   getBenchmarkPreset,
   MAX_BENCHMARKS_PER_PRESET,
@@ -8,11 +13,8 @@ import {
 
 export type ScoredBenchmark = {
   key: string;
-  score: number;
+  efforts: BenchmarkEffortScores;
 };
-
-export const STRENGTH_TIERS = ["Low", "Medium", "High", "XHigh"] as const;
-export type StrengthTier = (typeof STRENGTH_TIERS)[number];
 
 export function normalizePresentScore(
   category: ModelCategory,
@@ -26,29 +28,20 @@ export function normalizePresentScore(
   return normalizeBenchmarkScore(definition, score);
 }
 
-export function strengthTierFromNormalized(normalized: number): StrengthTier {
-  if (normalized < 25) {
-    return "Low";
-  }
-  if (normalized < 50) {
-    return "Medium";
-  }
-  if (normalized < 75) {
-    return "High";
-  }
-  return "XHigh";
-}
-
 export function selectBestBenchmark(
   category: ModelCategory,
   scores: ScoredBenchmark[],
-): (ScoredBenchmark & { normalized: number }) | null {
+): (ScoredBenchmark & { score: number; normalized: number }) | null {
   const preset = getBenchmarkPreset(category);
-  let best: (ScoredBenchmark & { normalized: number }) | null = null;
+  let best: (ScoredBenchmark & { score: number; normalized: number }) | null = null;
   let bestIndex = Number.POSITIVE_INFINITY;
 
   for (const entry of scores) {
-    const normalized = normalizePresentScore(category, entry.key, entry.score);
+    const effective = effectiveEffort(entry.efforts);
+    if (!effective) {
+      continue;
+    }
+    const normalized = normalizePresentScore(category, entry.key, effective.score);
     if (normalized === null) {
       continue;
     }
@@ -61,7 +54,7 @@ export function selectBestBenchmark(
       normalized > best.normalized ||
       (normalized === best.normalized && presetIndex < bestIndex)
     ) {
-      best = { ...entry, normalized };
+      best = { ...entry, score: effective.score, normalized };
       bestIndex = presetIndex;
     }
   }
@@ -74,7 +67,11 @@ export function averageNormalizedScore(
   scores: ScoredBenchmark[],
 ): number | null {
   const values = scores.flatMap((entry) => {
-    const normalized = normalizePresentScore(category, entry.key, entry.score);
+    const effective = effectiveEffort(entry.efforts);
+    if (!effective) {
+      return [];
+    }
+    const normalized = normalizePresentScore(category, entry.key, effective.score);
     return normalized === null ? [] : [normalized];
   });
 
@@ -91,9 +88,7 @@ export function benchmarkCompleteness(
 ): { filled: number; total: number } {
   const presetKeys = new Set(getBenchmarkPreset(category).map((definition) => definition.key));
   const filled = new Set(
-    scores
-      .filter((entry) => Number.isFinite(entry.score) && presetKeys.has(entry.key))
-      .map((entry) => entry.key),
+    scores.filter((entry) => hasAnyEffort(entry.efforts) && presetKeys.has(entry.key)).map((entry) => entry.key),
   ).size;
 
   return { filled, total: MAX_BENCHMARKS_PER_PRESET };

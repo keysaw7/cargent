@@ -36,3 +36,8 @@ export async function listMyImageGenerations(
     ];
   });
 }
+
+export async function getLatestMyImageUrl(userId: string): Promise<string | null> {
+  const [latest] = await listMyImageGenerations(userId, 1);
+  return latest?.imageUrl ?? null;
+}

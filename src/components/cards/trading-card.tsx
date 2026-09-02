@@ -3,17 +3,28 @@
 import Image from "next/image";
 import { useEffect, useId, useState } from "react";
 
-import { BenchmarkStrengthLine } from "@/components/cards/benchmark-strength-line";
+import { BenchmarkEffortLine } from "@/components/cards/benchmark-effort-line";
+import { BenchmarkRadar } from "@/components/cards/benchmark-radar";
 import { StarRow } from "@/components/cards/star-row";
+import type { BenchmarkEffortScores } from "@/lib/benchmark-efforts";
+import { selectBestBenchmark } from "@/lib/benchmark-stats";
 import { getCardTemplateStyle } from "@/lib/card-templates";
+import {
+  CARD_IMAGE_ASPECT_CLASS,
+  CARD_MAX_WIDTH_PX,
+  cardFrameClass,
+  effortDensityForCard,
+  radarSizeForFrontFooter,
+  type CardSize,
+} from "@/lib/card-layout";
 import { cardKindLabel, DEFAULT_CARD_TEMPLATE, type CardKind, type CardTemplate } from "@/lib/constants";
-import type { ModelCategory } from "@/lib/model-benchmarks";
-import { formatPricingCompact, type ModelPricingView } from "@/lib/model-pricing";
+import { getBenchmarkDefinition, type ModelCategory } from "@/lib/model-benchmarks";
+import { formatPricingCompact, formatPricingCorner, type ModelPricingView } from "@/lib/model-pricing";
 import { cn } from "@/lib/utils";
 
 export type TradingCardBenchmark = {
   key: string;
-  score: number;
+  efforts: BenchmarkEffortScores;
   version?: string;
   sourceUrl?: string;
   measuredAt?: string;
@@ -36,8 +47,9 @@ export type TradingCardView = {
 type TradingCardProps = {
   card: TradingCardView;
   className?: string;
-  size?: "sm" | "md" | "lg";
+  size?: CardSize;
   interactive?: boolean;
+  footerVisual?: "effort" | "radar";
 };
 
 function TemplateDecoration({
@@ -63,7 +75,79 @@ function TemplateDecoration({
   }
 }
 
-export function TradingCard({ card, className, size = "md", interactive = true }: TradingCardProps) {
+function ModelFooter({
+  card,
+  size,
+  footerVisual,
+  powerClass,
+}: {
+  card: TradingCardView;
+  size: CardSize;
+  footerVisual: "effort" | "radar";
+  powerClass: string;
+}) {
+  const category = card.modelCategory ?? null;
+  const scores = (card.benchmarks ?? []).map((benchmark) => ({
+    key: benchmark.key,
+    efforts: benchmark.efforts,
+  }));
+
+  if (!category) {
+    return (
+      <p className="px-3 pb-3 font-mono text-[11px] tracking-[0.12em] text-ivory/55 uppercase">
+        Catégorie non renseignée
+      </p>
+    );
+  }
+
+  const priceLabel = card.pricing ? (
+    <p className={cn("mt-1 shrink-0 text-right font-mono text-[10px] leading-none tracking-[0.04em]", powerClass)}>
+      <span className="sr-only">{formatPricingCompact(card.pricing)}</span>
+      <span aria-hidden="true">{formatPricingCorner(card.pricing)}</span>
+    </p>
+  ) : null;
+
+  if (footerVisual === "radar") {
+    return (
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-2 pb-2 pt-1">
+        <BenchmarkRadar
+          category={category}
+          scores={scores}
+          size={radarSizeForFrontFooter(size)}
+          showLabels={size !== "sm"}
+          className="min-h-0 flex-1"
+        />
+        {priceLabel}
+      </div>
+    );
+  }
+
+  const best = selectBestBenchmark(category, scores);
+  const definition = best ? getBenchmarkDefinition(category, best.key) : undefined;
+
+  return (
+    <div className="relative z-10 flex min-h-0 flex-1 flex-col px-2 pb-1 pt-1">
+      {best && definition ? (
+        <BenchmarkEffortLine
+          definition={definition}
+          efforts={best.efforts}
+          density={effortDensityForCard(size)}
+          className="min-h-0 flex-1"
+        />
+      ) : (
+        <p className="font-mono text-[11px] tracking-[0.12em] text-ivory/55 uppercase">Benchmarks non renseignés</p>
+      )}
+    </div>
+  );
+}
+
+export function TradingCard({
+  card,
+  className,
+  size = "md",
+  interactive = true,
+  footerVisual = "effort",
+}: TradingCardProps) {
   const titleId = useId();
   const [tilt, setTilt] = useState({ x: 0, y: 0, px: 50, py: 50, active: false });
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -104,12 +188,7 @@ export function TradingCard({ card, className, size = "md", interactive = true }
       aria-labelledby={titleId}
       onMouseMove={onMove}
       onMouseLeave={onLeave}
-      className={cn(
-        "card-tilt relative aspect-[59/86] w-full max-w-[320px] [transform-style:preserve-3d]",
-        size === "sm" && "max-w-[220px]",
-        size === "lg" && "max-w-[380px]",
-        className,
-      )}
+      className={cn("card-tilt relative [transform-style:preserve-3d]", cardFrameClass(size), className)}
       style={{
         transform: reduceMotion || !interactive ? undefined : `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
         transition: tilt.active ? "transform 80ms linear" : "transform 400ms ease",
@@ -119,7 +198,7 @@ export function TradingCard({ card, className, size = "md", interactive = true }
         <div className={cn("h-full", style.doubleRing && "bg-ivory/15 p-px", style.innerRadius)}>
           <div className={cn("relative flex h-full flex-col overflow-hidden", style.innerClass, style.innerRadius)}>
             <TemplateDecoration decoration={style.decoration} />
-            <header className="relative z-10 flex items-start justify-between gap-3 px-3 pt-3">
+            <header className="relative z-10 flex shrink-0 items-start justify-between gap-3 px-3 pt-3">
               <div className="min-w-0">
                 <p className={cn(style.kindClass, style.accentClass)}>{cardKindLabel(card.kind)}</p>
                 <h3 id={titleId} className={cn("line-clamp-2", style.titleClass)}>
@@ -130,14 +209,14 @@ export function TradingCard({ card, className, size = "md", interactive = true }
             </header>
             <StarRow
               level={card.level}
-              className="relative z-10 px-3 pt-2"
+              className="relative z-10 shrink-0 px-3 pt-2"
               filledClass={style.starFilledClass}
               emptyClass={style.starEmptyClass}
             />
-            <div className={cn("relative z-10 mx-3 mt-3", style.imageWrapClass)}>
-              <div className="relative aspect-[4/3]">
+            <div className={cn("relative z-10 mx-3 mt-3 shrink-0", style.imageWrapClass)}>
+              <div className={cn("relative", CARD_IMAGE_ASPECT_CLASS)}>
                 {card.imageUrl ? (
-                  <Image src={card.imageUrl} alt="" fill className="object-cover" sizes="320px" />
+                  <Image src={card.imageUrl} alt="" fill className="object-cover" sizes={`${CARD_MAX_WIDTH_PX[size]}px`} />
                 ) : (
                   <div className={cn("flex h-full items-center justify-center", style.imagePlaceholderClass)}>
                     <span className={cn("font-display text-3xl", style.accentClass, "opacity-70")}>
@@ -151,26 +230,7 @@ export function TradingCard({ card, className, size = "md", interactive = true }
               ) : null}
             </div>
             {card.kind === "model" ? (
-              <div className="relative z-10 mt-auto pt-3">
-                {!card.modelCategory ? (
-                  <p className="px-3 pb-3 font-mono text-[11px] tracking-[0.12em] text-ivory/55 uppercase">
-                    Catégorie non renseignée
-                  </p>
-                ) : (
-                  <BenchmarkStrengthLine
-                    category={card.modelCategory}
-                    scores={(card.benchmarks ?? []).map((benchmark) => ({
-                      key: benchmark.key,
-                      score: benchmark.score,
-                    }))}
-                  />
-                )}
-                {card.pricing ? (
-                  <p className={cn("px-3 pb-3 font-mono text-[10px] tracking-[0.04em]", style.abilityPowerClass)}>
-                    {formatPricingCompact(card.pricing)}
-                  </p>
-                ) : null}
-              </div>
+              <ModelFooter card={card} size={size} footerVisual={footerVisual} powerClass={style.abilityPowerClass} />
             ) : (
               <>
                 <p className={cn("relative z-10 line-clamp-3 px-3 pt-3", style.bodyClass)}>{card.shortDescription}</p>

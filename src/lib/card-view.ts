@@ -35,7 +35,12 @@ export function cardToView(card: CardWithAbilities | PublicCard): TradingCardVie
     modelCategory,
     benchmarks: sortBenchmarks(modelCategory, card.card_benchmarks ?? []).map((benchmark) => ({
       key: benchmark.benchmark_key,
-      score: Number(benchmark.score),
+      efforts: {
+        low: benchmark.low_score == null ? null : Number(benchmark.low_score),
+        medium: benchmark.medium_score == null ? null : Number(benchmark.medium_score),
+        high: benchmark.high_score == null ? null : Number(benchmark.high_score),
+        xhigh: benchmark.xhigh_score == null ? null : Number(benchmark.xhigh_score),
+      },
       version: benchmark.benchmark_version || undefined,
       sourceUrl: benchmark.source_url || undefined,
       measuredAt: benchmark.measured_at || undefined,

@@ -1,21 +1,35 @@
 import Link from "next/link";
 
 import { CardGrid } from "@/components/cards/card-grid";
-import { TradingCard } from "@/components/cards/trading-card";
+import { FlippableModelCard } from "@/components/cards/flippable-model-card";
 import { CollectionCard } from "@/components/collections/collection-card";
 import { Button } from "@/components/ui/button";
-import { getCurrentProfile } from "@/lib/queries/auth";
+import { getCurrentProfile, getCurrentUserId } from "@/lib/queries/auth";
 import { listRecentPublicCards } from "@/lib/queries/cards";
 import { listRecentPublicCollections } from "@/lib/queries/collections";
-import { SPECIMEN_CARD } from "@/lib/specimen";
+import { getLatestMyImageUrl } from "@/lib/queries/image-generations";
+import { SPECIMEN_MODEL_CARD } from "@/lib/specimen";
 import type { PublicCard } from "@/types/models";
 
+async function latestSpecimenImageUrl() {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return null;
+  }
+  return getLatestMyImageUrl(userId);
+}
+
 export default async function HomePage() {
-  const [profile, cards, collections] = await Promise.all([
+  const [profile, cards, collections, imageUrl] = await Promise.all([
     getCurrentProfile(),
     listRecentPublicCards(6),
     listRecentPublicCollections(4),
+    latestSpecimenImageUrl(),
   ]);
+  const specimen = {
+    ...SPECIMEN_MODEL_CARD,
+    imageUrl: imageUrl ?? SPECIMEN_MODEL_CARD.imageUrl,
+  };
 
   return (
     <main>
@@ -41,7 +55,7 @@ export default async function HomePage() {
           </div>
           <div className="relative flex justify-center lg:justify-end">
             <div className="binder-grid absolute inset-6 -z-10 hidden rounded-3xl opacity-50 sm:block" />
-            <TradingCard card={SPECIMEN_CARD} size="lg" />
+            <FlippableModelCard card={specimen} size="lg" />
           </div>
         </div>
       </section>
@@ -57,7 +71,7 @@ export default async function HomePage() {
           <CardGrid cards={cards as PublicCard[]} hrefFor={(card) => `/cards/${card.id}`} />
         ) : (
           <p className="text-sm text-muted-foreground">
-            Aucune carte publiée pour l’instant. Atlas t’attend encore dans le spécimen ci-dessus.
+            Aucune carte publiée pour l’instant. Forge t’attend encore dans le spécimen ci-dessus.
           </p>
         )}
       </section>

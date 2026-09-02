@@ -26,9 +26,28 @@ describe("parseDraftBenchmarks", () => {
       ],
       "code",
     );
-    expect(parsed[0]).toMatchObject({ key: "swe-bench-pro", score: "80" });
+    expect(parsed[0]).toMatchObject({ key: "swe-bench-pro", xhigh: "80" });
     expect(parsed.some((benchmark) => benchmark.key === "inconnu")).toBe(false);
     expect(parsed).toHaveLength(6);
+  });
+
+  it("mappe un ancien score unique vers XHigh", () => {
+    const parsed = parseDraftBenchmarks([{ key: "swe-bench-pro", score: 80 }], "code");
+    expect(parsed[0]).toMatchObject({ key: "swe-bench-pro", xhigh: "80", low: "", medium: "", high: "" });
+  });
+
+  it("conserve les quatre efforts d’un brouillon récent", () => {
+    const parsed = parseDraftBenchmarks(
+      [{ key: "swe-bench-pro", low: 20, medium: 40, high: 60, xhigh: 80 }],
+      "code",
+    );
+    expect(parsed[0]).toMatchObject({
+      key: "swe-bench-pro",
+      low: "20",
+      medium: "40",
+      high: "60",
+      xhigh: "80",
+    });
   });
 
   it("accepte un score sans provenance", () => {
@@ -38,7 +57,10 @@ describe("parseDraftBenchmarks", () => {
     );
     expect(parsed[0]).toMatchObject({
       key: "swe-bench-pro",
-      score: "80",
+      xhigh: "80",
+      low: "",
+      medium: "",
+      high: "",
       version: "",
       sourceUrl: "",
       measuredAt: "",
@@ -105,7 +127,7 @@ describe("getCardFormValues", () => {
     });
     expect(getCardFormValues(card, draft).benchmarks[0]).toMatchObject({
       key: "swe-bench-pro",
-      score: "70",
+      xhigh: "70",
     });
   });
 });

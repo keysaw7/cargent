@@ -1,18 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 
 import { ModelCardBack } from "@/components/cards/model-card-back";
 import { TradingCard, type TradingCardView } from "@/components/cards/trading-card";
 import { Button } from "@/components/ui/button";
+import { CARD_ASPECT_CLASS, CARD_MAX_WIDTH_CLASS, type CardSize } from "@/lib/card-layout";
 import { cn } from "@/lib/utils";
 
 type FlippableModelCardProps = {
   card: TradingCardView;
-  href: string;
-  size?: "sm" | "md" | "lg";
+  href?: string;
+  size?: CardSize;
 };
+
+function FlipFace({
+  href,
+  children,
+}: {
+  href?: string;
+  children: ReactNode;
+}) {
+  if (!href) {
+    return children;
+  }
+
+  return (
+    <Link href={href} className="block h-full focus-visible:rounded-[18px]">
+      {children}
+    </Link>
+  );
+}
 
 export function FlippableModelCard({ card, href, size = "sm" }: FlippableModelCardProps) {
   const panelId = useId();
@@ -28,13 +47,8 @@ export function FlippableModelCard({ card, href, size = "sm" }: FlippableModelCa
   }, []);
 
   return (
-    <div
-      className={cn(
-        "flex w-full flex-col items-center",
-        size === "sm" ? "max-w-[220px]" : size === "lg" ? "max-w-[380px]" : "max-w-[320px]",
-      )}
-    >
-      <div className="relative aspect-[59/86] w-full [perspective:1200px]">
+    <div className={cn("flex w-full flex-col items-center", CARD_MAX_WIDTH_CLASS[size])}>
+      <div className={cn("relative w-full [perspective:1200px]", CARD_ASPECT_CLASS)}>
         <div
           id={panelId}
           className={cn(
@@ -50,17 +64,17 @@ export function FlippableModelCard({ card, href, size = "sm" }: FlippableModelCa
             className="absolute inset-0 card-flip-face"
             aria-hidden={flipped || undefined}
           >
-            <Link href={href} className="block h-full focus-visible:rounded-[18px]">
+            <FlipFace href={href}>
               <TradingCard card={card} size={size} interactive={!flipped} className="max-w-none" />
-            </Link>
+            </FlipFace>
           </div>
           <div
             className="absolute inset-0 card-flip-face [transform:rotateY(180deg)]"
             aria-hidden={!flipped || undefined}
           >
-            <Link href={href} className="block h-full focus-visible:rounded-[18px]">
+            <FlipFace href={href}>
               <ModelCardBack card={card} size={size} className="max-w-none" />
-            </Link>
+            </FlipFace>
           </div>
         </div>
       </div>

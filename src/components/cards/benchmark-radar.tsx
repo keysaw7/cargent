@@ -1,3 +1,7 @@
+"use client";
+
+import { useId } from "react";
+
 import {
   formatBenchmarkScore,
   getBenchmarkDefinition,
@@ -5,27 +9,16 @@ import {
 } from "@/lib/model-benchmarks";
 import { buildRadarLayout, polygonToPath, ringToPath } from "@/lib/benchmark-radar";
 import type { ScoredBenchmark } from "@/lib/benchmark-stats";
+import { RADAR_PADDING, RADAR_VIEWBOX, type CardSize } from "@/lib/card-layout";
 import { cn } from "@/lib/utils";
 
 type BenchmarkRadarProps = {
   category: ModelCategory;
   scores: ScoredBenchmark[];
-  size?: "sm" | "md" | "lg";
+  size?: CardSize;
   showLabels?: boolean;
   className?: string;
 };
-
-const SIZE_PX = {
-  sm: 168,
-  md: 220,
-  lg: 280,
-} as const;
-
-const PADDING = {
-  sm: 18,
-  md: 32,
-  lg: 38,
-} as const;
 
 function labelAnchor(angle: number) {
   const cos = Math.cos(angle);
@@ -44,20 +37,20 @@ export function BenchmarkRadar({
   showLabels = true,
   className,
 }: BenchmarkRadarProps) {
-  const px = SIZE_PX[size];
-  const layout = buildRadarLayout(category, scores, px, PADDING[size]);
-  const titleId = "radar-title";
-  const descId = "radar-desc";
+  const px = RADAR_VIEWBOX[size];
+  const layout = buildRadarLayout(category, scores, px, RADAR_PADDING[size]);
+  const titleId = useId();
+  const descId = useId();
   const scoredCount = layout.points.filter((point) => point.normalized !== null).length;
 
   return (
-    <figure className={cn("flex flex-col items-center", className)}>
+    <figure className={cn("m-0 flex h-full min-h-0 w-full flex-col items-start justify-start", className)}>
       <svg
         viewBox={`0 0 ${px} ${px}`}
         role="img"
         aria-labelledby={titleId}
         aria-describedby={descId}
-        className="w-full max-w-[280px]"
+        className="h-full w-full"
       >
         <title id={titleId}>Profil des benchmarks</title>
         <desc id={descId}>

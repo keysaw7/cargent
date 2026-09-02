@@ -3,6 +3,7 @@ import {
   type BenchmarkDefinition,
   type ModelCategory,
 } from "@/lib/model-benchmarks";
+import { effectiveEffort } from "@/lib/benchmark-efforts";
 import { normalizePresentScore, type ScoredBenchmark } from "@/lib/benchmark-stats";
 
 export type RadarPoint = {
@@ -47,7 +48,12 @@ export function buildRadarLayout(
   const cx = size / 2;
   const cy = size / 2;
   const radius = size / 2 - padding;
-  const scoreByKey = new Map(scores.map((entry) => [entry.key, entry.score]));
+  const scoreByKey = new Map(
+    scores.flatMap((entry) => {
+      const effective = effectiveEffort(entry.efforts);
+      return effective ? [[entry.key, effective.score] as const] : [];
+    }),
+  );
 
   const points: RadarPoint[] = preset.map((definition, index) => {
     const angle = -Math.PI / 2 + (index * 2 * Math.PI) / preset.length;

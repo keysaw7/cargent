@@ -207,6 +207,14 @@ export function formatUsd(amount: number): string {
   return usdFormatter.format(amount);
 }
 
+function formatUsdCorner(amount: number): string {
+  const formatted = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amount);
+  return `${formatted}$`;
+}
+
 export function formatPricingCompact(pricing: ModelPricingView): string {
   switch (pricing.category) {
     case "code":
@@ -215,6 +223,21 @@ export function formatPricingCompact(pricing: ModelPricingView): string {
       return `${formatUsd(pricing.imageUsd)} / image`;
     case "video":
       return `${formatUsd(pricing.videoSecondUsd)} / s`;
+    default: {
+      const exhaustive: never = pricing;
+      return exhaustive;
+    }
+  }
+}
+
+export function formatPricingCorner(pricing: ModelPricingView): string {
+  switch (pricing.category) {
+    case "code":
+      return `${formatUsdCorner(pricing.inputUsdPerMillion)}/${formatUsdCorner(pricing.outputUsdPerMillion)}`;
+    case "image":
+      return `${formatUsdCorner(pricing.imageUsd)}/img`;
+    case "video":
+      return `${formatUsdCorner(pricing.videoSecondUsd)}/s`;
     default: {
       const exhaustive: never = pricing;
       return exhaustive;

@@ -1,25 +1,27 @@
-import { StarRow } from "@/components/cards/star-row";
 import { BenchmarkRadar } from "@/components/cards/benchmark-radar";
 import { getCardTemplateStyle } from "@/lib/card-templates";
-import { DEFAULT_CARD_TEMPLATE, cardKindLabel } from "@/lib/constants";
+import { DEFAULT_CARD_TEMPLATE } from "@/lib/constants";
+import { xhighScore } from "@/lib/benchmark-efforts";
 import {
-  averageNormalizedScore,
-  benchmarkCompleteness,
-  selectBestBenchmark,
-} from "@/lib/benchmark-stats";
+  CARD_BACK_BENCH_SHARE,
+  CARD_BACK_RADAR_SHARE,
+  cardFrameClass,
+  radarSizeForBack,
+  type CardSize,
+} from "@/lib/card-layout";
 import {
   formatBenchmarkScore,
   getBenchmarkDefinition,
-  modelCategoryLabel,
+  getBenchmarkPreset,
 } from "@/lib/model-benchmarks";
-import { formatPricingCompact } from "@/lib/model-pricing";
+import { formatPricingCompact, formatPricingCorner } from "@/lib/model-pricing";
 import { cn } from "@/lib/utils";
 import type { TradingCardView } from "@/components/cards/trading-card";
 
 type ModelCardBackProps = {
   card: TradingCardView;
   className?: string;
-  size?: "sm" | "md" | "lg";
+  size?: CardSize;
 };
 
 export function ModelCardBack({ card, className, size = "sm" }: ModelCardBackProps) {
@@ -27,23 +29,12 @@ export function ModelCardBack({ card, className, size = "sm" }: ModelCardBackPro
   const category = card.modelCategory ?? null;
   const scores = (card.benchmarks ?? []).map((benchmark) => ({
     key: benchmark.key,
-    score: benchmark.score,
+    efforts: benchmark.efforts,
   }));
-  const best = category ? selectBestBenchmark(category, scores) : null;
-  const average = category ? averageNormalizedScore(category, scores) : null;
-  const completeness = category ? benchmarkCompleteness(category, scores) : { filled: 0, total: 6 };
-  const bestDefinition =
-    category && best ? getBenchmarkDefinition(category, best.key) : undefined;
+  const byKey = new Map((card.benchmarks ?? []).map((benchmark) => [benchmark.key, benchmark]));
 
   return (
-    <article
-      className={cn(
-        "relative aspect-[59/86] w-full max-w-[320px]",
-        size === "sm" && "max-w-[220px]",
-        size === "lg" && "max-w-[380px]",
-        className,
-      )}
-    >
+    <article aria-label={`Verso de ${card.name}`} className={cn("relative", cardFrameClass(size), className)}>
       <div
         className={cn(
           "absolute inset-0 shadow-[0_20px_50px_rgba(0,0,0,0.45)]",
@@ -53,27 +44,24 @@ export function ModelCardBack({ card, className, size = "sm" }: ModelCardBackPro
         )}
       >
         <div className={cn("h-full", style.doubleRing && "bg-ivory/15 p-px", style.innerRadius)}>
-          <div className={cn("relative flex h-full flex-col overflow-hidden", style.innerClass, style.innerRadius)}>
-            <header className="relative z-10 flex items-start justify-between gap-3 px-3 pt-3">
-              <div className="min-w-0">
-                <p className={cn(style.kindClass, style.accentClass)}>{cardKindLabel(card.kind)}</p>
-                <h3 className={cn("line-clamp-2", style.titleClass)}>{card.name}</h3>
-              </div>
-              <p className={cn("shrink-0", style.levelClass)}>NIV {card.level}</p>
-            </header>
-            <StarRow
-              level={card.level}
-              className="relative z-10 px-3 pt-2"
-              filledClass={style.starFilledClass}
-              emptyClass={style.starEmptyClass}
-            />
-            <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center px-2 pt-2">
+          <div
+            className={cn("relative grid h-full overflow-hidden", style.innerClass, style.innerRadius)}
+            style={{ gridTemplateRows: `${CARD_BACK_RADAR_SHARE} ${CARD_BACK_BENCH_SHARE}` }}
+          >
+            {card.pricing ? (
+              <p className={cn("absolute top-2 right-3 z-20 font-mono text-[10px] leading-none tracking-[0.04em]", style.abilityPowerClass)}>
+                <span className="sr-only">{formatPricingCompact(card.pricing)}</span>
+                <span aria-hidden="true">{formatPricingCorner(card.pricing)}</span>
+              </p>
+            ) : null}
+            <div className="relative z-10 min-h-0 px-1 pt-0">
               {category ? (
                 <BenchmarkRadar
                   category={category}
                   scores={scores}
-                  size={size === "lg" ? "md" : "sm"}
+                  size={radarSizeForBack(size)}
                   showLabels={size !== "sm"}
+                  className="h-full w-full"
                 />
               ) : (
                 <p className="px-3 font-mono text-[11px] tracking-[0.12em] text-ivory/55 uppercase">
@@ -81,38 +69,32 @@ export function ModelCardBack({ card, className, size = "sm" }: ModelCardBackPro
                 </p>
               )}
             </div>
-            <dl className="relative z-10 mt-auto space-y-1 px-3 pb-3 font-mono text-[10px] tracking-[0.08em] text-ivory/85 uppercase">
-              <div className="flex justify-between gap-2 border-t border-gold/20 pt-1.5">
-                <dt>Meilleur</dt>
-                <dd className="truncate text-right">
-                  {best && bestDefinition
-                    ? `${bestDefinition.shortLabel} ${formatBenchmarkScore(bestDefinition, best.score)}`
-                    : "N/D"}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>Indice moyen</dt>
-                <dd>{average === null ? "N/D" : Math.round(average)}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>Catégorie</dt>
-                <dd>{category ? modelCategoryLabel(category) : "N/D"}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>Scores</dt>
-                <dd>
-                  {completeness.filled}/{completeness.total}
-                </dd>
-              </div>
-              {card.pricing ? (
-                <div className="flex justify-between gap-2">
-                  <dt>Tarif</dt>
-                  <dd className="truncate text-right normal-case tracking-normal">
-                    {formatPricingCompact(card.pricing)}
-                  </dd>
-                </div>
-              ) : null}
-            </dl>
+            {category ? (
+              <ul className="relative z-10 grid min-h-0 grid-rows-6 px-3 pb-2 font-mono text-[10px] tracking-[0.08em] text-ivory/85 uppercase">
+                {getBenchmarkPreset(category).map((definition) => {
+                  const stored = byKey.get(definition.key);
+                  const score = stored ? xhighScore(stored.efforts) : null;
+                  const displayDefinition = stored
+                    ? (getBenchmarkDefinition(category, stored.key) ?? definition)
+                    : definition;
+                  return (
+                    <li key={definition.key} className="flex min-h-0 items-center justify-between gap-2 border-t border-gold/15">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          aria-hidden="true"
+                          className="size-1.5 shrink-0 rounded-full"
+                          style={{ background: definition.color }}
+                        />
+                        <span className="truncate">{definition.shortLabel}</span>
+                      </span>
+                      <span className="shrink-0 normal-case tracking-normal" style={{ color: definition.color }}>
+                        {score === null ? "N/D" : formatBenchmarkScore(displayDefinition, score)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
           </div>
         </div>
       </div>

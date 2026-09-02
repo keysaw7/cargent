@@ -97,7 +97,7 @@ describe("cardSchema", () => {
   it("refuse un benchmark du mauvais preset et un doublon", () => {
     const benchmark = {
       key: "vbench",
-      score: 80,
+      xhigh: 80,
       version: "1.0",
       sourceUrl: "https://example.com/source",
       measuredAt: "2026-07-01",
@@ -118,7 +118,7 @@ describe("cardSchema", () => {
       modelCategory: "code",
       benchmarks: [
         { ...benchmark, key: "swe-bench-pro" },
-        { ...benchmark, key: "swe-bench-pro", score: 70 },
+        { ...benchmark, key: "swe-bench-pro", xhigh: 70 },
       ],
     });
     expect(duplicate.success).toBe(false);
@@ -130,9 +130,9 @@ describe("cardSchema", () => {
       kind: "model",
       abilities: [],
       modelCategory: "code",
-      benchmarks: [{ key: "swe-bench-pro", score: 80 }],
+      benchmarks: [{ key: "swe-bench-pro", xhigh: 80 }],
     });
-    expect(scoreOnly.benchmarks[0]?.score).toBe(80);
+    expect(scoreOnly.benchmarks[0]?.xhigh).toBe(80);
 
     const partial = cardSchema.parse({
       ...validCard,
@@ -142,7 +142,7 @@ describe("cardSchema", () => {
       benchmarks: [
         {
           key: "swe-bench-pro",
-          score: 80,
+          xhigh: 80,
           version: "2026-08",
           sourceUrl: "",
           measuredAt: "",
@@ -150,6 +150,53 @@ describe("cardSchema", () => {
       ],
     });
     expect(partial.benchmarks[0]?.version).toBe("2026-08");
+  });
+
+  it("accepte quatre efforts croissants et refuse un ordre décroissant", () => {
+    const increasing = cardSchema.parse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [
+        {
+          key: "swe-bench-pro",
+          low: 20,
+          medium: 40,
+          high: 60,
+          xhigh: 80,
+        },
+      ],
+    });
+    expect(increasing.benchmarks[0]).toMatchObject({ low: 20, medium: 40, high: 60, xhigh: 80 });
+
+    const decreasing = cardSchema.safeParse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [
+        {
+          key: "swe-bench-pro",
+          low: 80,
+          medium: 40,
+          high: null,
+          xhigh: null,
+        },
+      ],
+    });
+    expect(decreasing.success).toBe(false);
+  });
+
+  it("refuse un benchmark sans aucun effort", () => {
+    const empty = cardSchema.safeParse({
+      ...validCard,
+      kind: "model",
+      abilities: [],
+      modelCategory: "code",
+      benchmarks: [{ key: "swe-bench-pro" }],
+    });
+    expect(empty.success).toBe(false);
   });
 
   it("refuse une URL non https et une date invalide si elles sont renseignées", () => {
@@ -161,7 +208,7 @@ describe("cardSchema", () => {
       benchmarks: [
         {
           key: "swe-bench-pro",
-          score: 80,
+          xhigh: 80,
           version: "",
           sourceUrl: "http://example.com/source",
           measuredAt: "",
@@ -178,7 +225,7 @@ describe("cardSchema", () => {
       benchmarks: [
         {
           key: "swe-bench-pro",
-          score: 80,
+          xhigh: 80,
           measuredAt: "07-01-2026",
         },
       ],

@@ -23,6 +23,12 @@ import {
   MIN_TAG_LENGTH,
 } from "@/lib/constants";
 import {
+  EFFORT_LABELS,
+  EFFORT_LEVELS,
+  firstMonotonicViolation,
+  hasAnyEffort,
+} from "@/lib/benchmark-efforts";
+import {
   getBenchmarkDefinition,
   isBenchmarkKey,
   MAX_BENCHMARK_KEY,
@@ -84,33 +90,63 @@ export const draftPricingSchema = z.object({
   videoSecondUsd: draftPriceSchema,
 });
 
-export const publishedBenchmarkSchema = z.object({
-  key: z
-    .string()
-    .trim()
-    .min(2, "Clé de benchmark invalide.")
-    .max(MAX_BENCHMARK_KEY, `La clé est limitée à ${MAX_BENCHMARK_KEY} caractères.`),
-  score: z.number().finite("Le score est invalide."),
-  version: z
-    .string()
-    .trim()
-    .max(MAX_BENCHMARK_VERSION, `La version est limitée à ${MAX_BENCHMARK_VERSION} caractères.`)
-    .optional()
-    .or(z.literal("")),
-  sourceUrl: z
-    .string()
-    .trim()
-    .max(MAX_SOURCE_URL, `L’URL est limitée à ${MAX_SOURCE_URL} caractères.`)
-    .optional()
-    .or(z.literal(""))
-    .refine((value) => !value || httpsUrlSchema.safeParse(value).success, "Utilise une URL https valide."),
-  measuredAt: z
-    .string()
-    .trim()
-    .optional()
-    .or(z.literal(""))
-    .refine((value) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value), "Indique une date de mesure valide."),
-});
+const optionalEffortScoreSchema = z.number().finite("Le score est invalide.").nullable().optional();
+
+export const publishedBenchmarkSchema = z
+  .object({
+    key: z
+      .string()
+      .trim()
+      .min(2, "Clé de benchmark invalide.")
+      .max(MAX_BENCHMARK_KEY, `La clé est limitée à ${MAX_BENCHMARK_KEY} caractères.`),
+    low: optionalEffortScoreSchema,
+    medium: optionalEffortScoreSchema,
+    high: optionalEffortScoreSchema,
+    xhigh: optionalEffortScoreSchema,
+    version: z
+      .string()
+      .trim()
+      .max(MAX_BENCHMARK_VERSION, `La version est limitée à ${MAX_BENCHMARK_VERSION} caractères.`)
+      .optional()
+      .or(z.literal("")),
+    sourceUrl: z
+      .string()
+      .trim()
+      .max(MAX_SOURCE_URL, `L’URL est limitée à ${MAX_SOURCE_URL} caractères.`)
+      .optional()
+      .or(z.literal(""))
+      .refine((value) => !value || httpsUrlSchema.safeParse(value).success, "Utilise une URL https valide."),
+    measuredAt: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal(""))
+      .refine((value) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value), "Indique une date de mesure valide."),
+  })
+  .superRefine((benchmark, ctx) => {
+    const efforts = {
+      low: benchmark.low ?? null,
+      medium: benchmark.medium ?? null,
+      high: benchmark.high ?? null,
+      xhigh: benchmark.xhigh ?? null,
+    };
+    if (!hasAnyEffort(efforts)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Renseigne au moins un effort.",
+        path: ["xhigh"],
+      });
+      return;
+    }
+    const violation = firstMonotonicViolation(efforts);
+    if (violation) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Les efforts renseignés doivent être croissants (${EFFORT_LABELS[violation]} trop bas).`,
+        path: [violation],
+      });
+    }
+  });
 
 export const cardSchema = z
   .object({
@@ -204,15 +240,20 @@ export const cardSchema = z
       }
       seen.add(benchmark.key);
       const definition = getBenchmarkDefinition(category, benchmark.key);
-      if (
-        definition &&
-        (benchmark.score < definition.domain.min || benchmark.score > definition.domain.max)
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          message: `Le score doit être entre ${definition.domain.min} et ${definition.domain.max}.`,
-          path: ["benchmarks", index, "score"],
-        });
+      if (definition) {
+        for (const level of EFFORT_LEVELS) {
+          const score = benchmark[level];
+          if (score == null) {
+            continue;
+          }
+          if (score < definition.domain.min || score > definition.domain.max) {
+            ctx.addIssue({
+              code: "custom",
+              message: `Le score ${EFFORT_LABELS[level]} doit être entre ${definition.domain.min} et ${definition.domain.max}.`,
+              path: ["benchmarks", index, level],
+            });
+          }
+        }
       }
     }
 
@@ -233,9 +274,15 @@ export const draftAbilitySchema = z.object({
   power: z.coerce.number().int().min(MIN_ABILITY_POWER).max(MAX_ABILITY_POWER),
 });
 
+const draftEffortScoreSchema = z.union([z.number().finite(), z.string(), z.null()]).optional();
+
 export const draftBenchmarkSchema = z.object({
   key: z.string().trim().max(MAX_BENCHMARK_KEY),
-  score: z.union([z.number().finite(), z.string(), z.null()]).optional(),
+  low: draftEffortScoreSchema,
+  medium: draftEffortScoreSchema,
+  high: draftEffortScoreSchema,
+  xhigh: draftEffortScoreSchema,
+  score: draftEffortScoreSchema,
   version: z
     .string()
     .trim()

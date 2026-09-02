@@ -1,3 +1,4 @@
+import { hasAnyEffort, type BenchmarkEffortScores } from "@/lib/benchmark-efforts";
 import { resolveCardTemplate } from "@/lib/card-templates";
 import { DEFAULT_CARD_TEMPLATE, type CardKind, type CardTemplate } from "@/lib/constants";
 import {
@@ -23,7 +24,10 @@ export type CardFormAbility = {
 
 export type CardFormBenchmark = {
   key: string;
-  score: string;
+  low: string;
+  medium: string;
+  high: string;
+  xhigh: string;
   version: string;
   sourceUrl: string;
   measuredAt: string;
@@ -50,7 +54,7 @@ export type CardFormValues = {
 const emptyAbility: CardFormAbility = { name: "", description: "", power: 50 };
 
 export function emptyBenchmarkRow(key = ""): CardFormBenchmark {
-  return { key, score: "", version: "", sourceUrl: "", measuredAt: "" };
+  return { key, low: "", medium: "", high: "", xhigh: "", version: "", sourceUrl: "", measuredAt: "" };
 }
 
 export function emptyBenchmarksFor(category: ModelCategory): CardFormBenchmark[] {
@@ -103,6 +107,24 @@ function scoreToString(value: unknown): string {
   return "";
 }
 
+function parseOptionalScore(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+export function formBenchmarkEfforts(benchmark: CardFormBenchmark): BenchmarkEffortScores {
+  return {
+    low: parseOptionalScore(benchmark.low),
+    medium: parseOptionalScore(benchmark.medium),
+    high: parseOptionalScore(benchmark.high),
+    xhigh: parseOptionalScore(benchmark.xhigh),
+  };
+}
+
 export function parseDraftBenchmarks(value: Json, category: ModelCategory | null): CardFormBenchmark[] {
   const fallback = category ? emptyBenchmarksFor(category) : [];
   if (!Array.isArray(value)) {
@@ -114,10 +136,15 @@ export function parseDraftBenchmarks(value: Json, category: ModelCategory | null
     if (!result.success || !result.data.key) {
       return [];
     }
+    const xhigh = scoreToString(result.data.xhigh);
+    const legacy = scoreToString(result.data.score);
     return [
       {
         key: result.data.key,
-        score: scoreToString(result.data.score),
+        low: scoreToString(result.data.low),
+        medium: scoreToString(result.data.medium),
+        high: scoreToString(result.data.high),
+        xhigh: xhigh || legacy,
         version: result.data.version ?? "",
         sourceUrl: result.data.sourceUrl ?? "",
         measuredAt: result.data.measuredAt ?? "",
@@ -155,7 +182,10 @@ export function cardToFormValues(card: CardWithAbilities): CardFormValues {
       benchmark.benchmark_key,
       {
         key: benchmark.benchmark_key,
-        score: String(benchmark.score),
+        low: scoreToString(benchmark.low_score),
+        medium: scoreToString(benchmark.medium_score),
+        high: scoreToString(benchmark.high_score),
+        xhigh: scoreToString(benchmark.xhigh_score),
         version: benchmark.benchmark_version ?? "",
         sourceUrl: benchmark.source_url ?? "",
         measuredAt: benchmark.measured_at ?? "",
@@ -226,5 +256,10 @@ export function getCardFormValues(card?: CardWithAbilities, draft?: CardDraft | 
 }
 
 export function formBenchmarkHasScore(benchmark: CardFormBenchmark): boolean {
-  return benchmark.score.trim().length > 0;
+  return hasAnyEffort({
+    low: parseOptionalScore(benchmark.low),
+    medium: parseOptionalScore(benchmark.medium),
+    high: parseOptionalScore(benchmark.high),
+    xhigh: parseOptionalScore(benchmark.xhigh),
+  });
 }

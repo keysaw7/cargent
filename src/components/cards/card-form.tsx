@@ -15,7 +15,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { ActionResult } from "@/lib/action-result";
-import { getCardFormValues, emptyBenchmarksFor, type CardFormAbility } from "@/lib/card-draft";
+import {
+  EFFORT_LABELS,
+  EFFORT_LEVELS,
+  firstMonotonicViolation,
+  hasAnyEffort,
+} from "@/lib/benchmark-efforts";
+import {
+  emptyBenchmarksFor,
+  formBenchmarkEfforts,
+  formBenchmarkHasScore,
+  getCardFormValues,
+  type CardFormAbility,
+  type CardFormBenchmark,
+} from "@/lib/card-draft";
 import {
   CARD_DRAFT_AUTOSAVE_MS,
   IMAGE_GENERATION_HISTORY_LIMIT,
@@ -136,10 +149,8 @@ export function CardForm({
       benchmarks:
         kind === "model"
           ? benchmarks.flatMap((benchmark) => {
-              const score = Number(benchmark.score);
-              return benchmark.score.trim() && Number.isFinite(score)
-                ? [{ key: benchmark.key, score }]
-                : [];
+              const efforts = formBenchmarkEfforts(benchmark);
+              return hasAnyEffort(efforts) ? [{ key: benchmark.key, efforts }] : [];
             })
           : [],
       pricing: kind === "model" && modelCategory ? formPricingToView(modelCategory, pricing) : null,
@@ -177,13 +188,17 @@ export function CardForm({
       ability.power > MAX_ABILITY_POWER,
   );
   const scoredBenchmarks = benchmarks.flatMap((benchmark) => {
-    if (!benchmark.score.trim()) {
+    const efforts = formBenchmarkEfforts(benchmark);
+    if (!hasAnyEffort(efforts)) {
       return [];
     }
     return [
       {
         key: benchmark.key,
-        score: Number(benchmark.score),
+        low: efforts.low,
+        medium: efforts.medium,
+        high: efforts.high,
+        xhigh: efforts.xhigh,
         version: benchmark.version.trim(),
         sourceUrl: benchmark.sourceUrl.trim(),
         measuredAt: benchmark.measuredAt.trim(),
@@ -199,11 +214,13 @@ export function CardForm({
           return true;
         }
         const definition = getBenchmarkDefinition(modelCategory, parsed.data.key);
-        return (
-          !definition ||
-          parsed.data.score < definition.domain.min ||
-          parsed.data.score > definition.domain.max
-        );
+        if (!definition) {
+          return true;
+        }
+        return EFFORT_LEVELS.some((level) => {
+          const score = parsed.data[level];
+          return score != null && (score < definition.domain.min || score > definition.domain.max);
+        });
       }));
   const pricingActive = kind === "model" && formPricingHasValue(pricing, modelCategory);
   const pricingInvalid =
@@ -447,7 +464,7 @@ export function CardForm({
   }
 
   function onCategoryChange(next: ModelCategory) {
-    const hasScores = benchmarks.some((benchmark) => benchmark.score.trim().length > 0);
+    const hasScores = benchmarks.some((benchmark) => formBenchmarkHasScore(benchmark));
     if (modelCategory && next !== modelCategory && hasScores) {
       const confirmed = window.confirm("Changer de catégorie remplace les scores saisis. Continuer ?");
       if (!confirmed) {
@@ -665,13 +682,8 @@ export function CardForm({
               if (!definition) {
                 return null;
               }
-              const scoreValue = benchmark.score.trim();
-              const parsedScore = Number(benchmark.score);
-              const scoreInvalid =
-                scoreValue.length > 0 &&
-                (!Number.isFinite(parsedScore) ||
-                  parsedScore < definition.domain.min ||
-                  parsedScore > definition.domain.max);
+              const efforts = formBenchmarkEfforts(benchmark);
+              const monotonicViolation = firstMonotonicViolation(efforts);
               const versionState = fieldLengthState(benchmark.version, MAX_BENCHMARK_VERSION);
               const sourceFilled = benchmark.sourceUrl.trim().length > 0;
               const sourceInvalid = sourceFilled && httpsUrlSchema.safeParse(benchmark.sourceUrl).success === false;
@@ -679,6 +691,12 @@ export function CardForm({
               const dateInvalid = dateFilled && !/^\d{4}-\d{2}-\d{2}$/.test(benchmark.measuredAt);
               const hasAdvanced =
                 benchmark.version.trim().length > 0 || sourceFilled || dateFilled;
+
+              function updateBenchmark(patch: Partial<CardFormBenchmark>) {
+                const next = [...benchmarks];
+                next[index] = { ...benchmark, ...patch };
+                setBenchmarks(next);
+              }
 
               return (
                 <div key={benchmark.key} className="space-y-3 rounded-lg border border-gold/15 p-3">
@@ -689,32 +707,52 @@ export function CardForm({
                   <div className="space-y-3">
                     <div className="space-y-1.5">
                       <div className="flex items-baseline justify-between gap-2">
-                        <Label htmlFor={`benchmark-score-${index}`}>
-                          Score ({benchmarkUnitLabel(definition)})
-                        </Label>
-                        <p
-                          className={cn(
-                            "font-mono text-[11px] tabular-nums",
-                            scoreInvalid ? "text-destructive" : "text-muted-foreground",
-                          )}
-                        >
+                        <p className="text-sm font-medium">
+                          Efforts ({benchmarkUnitLabel(definition)})
+                        </p>
+                        <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
                           {definition.domain.min}–{definition.domain.max}
                         </p>
                       </div>
-                      <Input
-                        id={`benchmark-score-${index}`}
-                        type="number"
-                        step="any"
-                        min={definition.domain.min}
-                        max={definition.domain.max}
-                        value={benchmark.score}
-                        aria-invalid={scoreInvalid || undefined}
-                        onChange={(event) => {
-                          const next = [...benchmarks];
-                          next[index] = { ...benchmark, score: event.target.value };
-                          setBenchmarks(next);
-                        }}
-                      />
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        {EFFORT_LEVELS.map((level) => {
+                          const fieldId = `benchmark-${level}-${index}`;
+                          const raw = benchmark[level];
+                          const parsed = efforts[level];
+                          const domainInvalid =
+                            parsed != null &&
+                            (!Number.isFinite(parsed) ||
+                              parsed < definition.domain.min ||
+                              parsed > definition.domain.max);
+                          const orderInvalid = monotonicViolation === level;
+                          const invalid = domainInvalid || orderInvalid;
+                          return (
+                            <div key={level} className="space-y-1.5">
+                              <Label htmlFor={fieldId}>{EFFORT_LABELS[level]}</Label>
+                              <Input
+                                id={fieldId}
+                                type="number"
+                                step="any"
+                                min={definition.domain.min}
+                                max={definition.domain.max}
+                                value={raw}
+                                aria-invalid={invalid || undefined}
+                                onChange={(event) => updateBenchmark({ [level]: event.target.value })}
+                              />
+                              {domainInvalid ? (
+                                <p className="text-[11px] text-destructive">
+                                  Entre {definition.domain.min} et {definition.domain.max}.
+                                </p>
+                              ) : null}
+                              {orderInvalid ? (
+                                <p className="text-[11px] text-destructive">
+                                  Les efforts renseignés doivent être croissants.
+                                </p>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                     <AdvancedFields initiallyOpen={hasAdvanced}>
                       <div className="grid gap-3 border-t border-gold/10 p-3 sm:grid-cols-2">
@@ -731,11 +769,7 @@ export function CardForm({
                             placeholder="ex. 2026-08"
                             maxLength={MAX_BENCHMARK_VERSION}
                             aria-invalid={versionState.invalid || undefined}
-                            onChange={(event) => {
-                              const next = [...benchmarks];
-                              next[index] = { ...benchmark, version: event.target.value };
-                              setBenchmarks(next);
-                            }}
+                            onChange={(event) => updateBenchmark({ version: event.target.value })}
                           />
                         </div>
                         <div className="space-y-1.5">
@@ -752,11 +786,7 @@ export function CardForm({
                             placeholder="https://"
                             maxLength={MAX_SOURCE_URL}
                             aria-invalid={sourceInvalid || undefined}
-                            onChange={(event) => {
-                              const next = [...benchmarks];
-                              next[index] = { ...benchmark, sourceUrl: event.target.value };
-                              setBenchmarks(next);
-                            }}
+                            onChange={(event) => updateBenchmark({ sourceUrl: event.target.value })}
                           />
                         </div>
                         <div className="space-y-1.5 sm:col-span-2">
@@ -766,11 +796,7 @@ export function CardForm({
                             type="date"
                             value={benchmark.measuredAt}
                             aria-invalid={dateInvalid || undefined}
-                            onChange={(event) => {
-                              const next = [...benchmarks];
-                              next[index] = { ...benchmark, measuredAt: event.target.value };
-                              setBenchmarks(next);
-                            }}
+                            onChange={(event) => updateBenchmark({ measuredAt: event.target.value })}
                           />
                         </div>
                       </div>
@@ -916,7 +942,7 @@ export function CardForm({
       </form>
       <aside className="lg:sticky lg:top-24">
         <p className="mb-4 font-mono text-[11px] tracking-[0.24em] text-gold uppercase">Aperçu</p>
-        <TradingCard card={preview} />
+        <TradingCard card={preview} size="md" />
       </aside>
     </div>
   );

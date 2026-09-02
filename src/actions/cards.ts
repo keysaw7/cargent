@@ -124,7 +124,10 @@ async function replaceBenchmarks(
       benchmarks.map((benchmark) => ({
         card_id: cardId,
         benchmark_key: benchmark.key,
-        score: benchmark.score,
+        low_score: benchmark.low ?? null,
+        medium_score: benchmark.medium ?? null,
+        high_score: benchmark.high ?? null,
+        xhigh_score: benchmark.xhigh ?? null,
         benchmark_version: benchmark.version?.trim() || null,
         source_url: benchmark.sourceUrl?.trim() || null,
         measured_at: benchmark.measuredAt?.trim() || null,

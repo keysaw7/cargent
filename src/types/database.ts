@@ -141,30 +141,39 @@ export type Database = {
           benchmark_version: string | null;
           card_id: string;
           created_at: string;
+          high_score: number | null;
           id: string;
+          low_score: number | null;
           measured_at: string | null;
-          score: number;
+          medium_score: number | null;
           source_url: string | null;
+          xhigh_score: number | null;
         };
         Insert: {
           benchmark_key: string;
           benchmark_version?: string | null;
           card_id: string;
           created_at?: string;
+          high_score?: number | null;
           id?: string;
+          low_score?: number | null;
           measured_at?: string | null;
-          score: number;
+          medium_score?: number | null;
           source_url?: string | null;
+          xhigh_score?: number | null;
         };
         Update: {
           benchmark_key?: string;
           benchmark_version?: string | null;
           card_id?: string;
           created_at?: string;
+          high_score?: number | null;
           id?: string;
+          low_score?: number | null;
           measured_at?: string | null;
-          score?: number;
+          medium_score?: number | null;
           source_url?: string | null;
+          xhigh_score?: number | null;
         };
         Relationships: [
           {

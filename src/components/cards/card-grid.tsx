@@ -2,7 +2,9 @@ import Link from "next/link";
 
 import { FlippableModelCard } from "@/components/cards/flippable-model-card";
 import { TradingCard } from "@/components/cards/trading-card";
+import { CARD_MAX_WIDTH_CLASS } from "@/lib/card-layout";
 import { cardToView } from "@/lib/card-view";
+import { cn } from "@/lib/utils";
 import type { CardWithAbilities, PublicCard } from "@/types/models";
 
 export { cardToView };
@@ -24,7 +26,7 @@ export function CardGrid({
             {card.kind === "model" ? (
               <FlippableModelCard card={view} href={href} />
             ) : (
-              <Link href={href} className="block w-full max-w-[280px] focus-visible:rounded-[18px]">
+              <Link href={href} className={cn("block w-full focus-visible:rounded-[18px]", CARD_MAX_WIDTH_CLASS.sm)}>
                 <TradingCard card={view} size="sm" className="mx-auto" />
               </Link>
             )}
